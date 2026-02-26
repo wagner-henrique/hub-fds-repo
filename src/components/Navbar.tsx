@@ -4,6 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
+import BookingDialog from './BookingDialog';
 
 const Navbar = () => {
   return (
@@ -33,13 +34,15 @@ const Navbar = () => {
           <Link href="#reserva" className="nav-link text-sm font-medium hover:text-primary transition-colors">Reservas</Link>
           <Link href="#contato" className="nav-link text-sm font-medium hover:text-primary transition-colors">Contato</Link>
           
-          <motion.button 
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="bg-primary text-white px-6 py-2 rounded-full text-sm font-semibold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
-          >
-            Agendar Visita
-          </motion.button>
+          <BookingDialog>
+            <motion.button 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="bg-primary text-white px-6 py-2 rounded-full text-sm font-semibold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+            >
+              Agendar Visita
+            </motion.button>
+          </BookingDialog>
         </div>
       </div>
     </motion.nav>
