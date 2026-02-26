@@ -12,13 +12,14 @@ import {
   Mail,
   Phone,
   Edit3,
-  Plus
+  Database,
+  RefreshCw
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -29,8 +30,8 @@ const AdminDashboard = () => {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [isSeeding, setIsSeeding] = useState(false);
   
-  // Estados para edição
   const [editingItem, setEditingItem] = useState<any>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
@@ -41,10 +42,8 @@ const AdminDashboard = () => {
         fetch('/api/bookings'),
         fetch('/api/leads')
       ]);
-      const bookingsData = await bookingsRes.json();
-      const leadsData = await leadsRes.json();
-      setBookings(bookingsData);
-      setLeads(leadsData);
+      setBookings(await bookingsRes.json());
+      setLeads(await leadsRes.json());
     } catch (error) {
       showError("Erro ao carregar dados.");
     } finally {
@@ -56,19 +55,32 @@ const AdminDashboard = () => {
     fetchData();
   }, []);
 
+  const runSeed = async () => {
+    setIsSeeding(true);
+    try {
+      const res = await fetch('/api/admin/seed', { method: 'POST' });
+      if (res.ok) {
+        showSuccess("Banco de dados populado!");
+        fetchData();
+      }
+    } catch (error) {
+      showError("Erro ao rodar seed.");
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     const endpoint = activeTab === "bookings" ? `/api/bookings/${editingItem.id}` : `/api/leads/${editingItem.id}`;
-    
     try {
       const res = await fetch(endpoint, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingItem)
       });
-      
       if (res.ok) {
-        showSuccess("Atualizado com sucesso!");
+        showSuccess("Registro atualizado!");
         setIsEditDialogOpen(false);
         fetchData();
       }
@@ -78,11 +90,11 @@ const AdminDashboard = () => {
   };
 
   const handleDelete = async (id: string, type: 'bookings' | 'leads') => {
-    if (!confirm("Tem certeza que deseja excluir?")) return;
+    if (!confirm("Deseja realmente excluir este registro?")) return;
     try {
       const res = await fetch(`/api/${type}/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        showSuccess("Removido com sucesso.");
+        showSuccess("Excluído com sucesso.");
         fetchData();
       }
     } catch (error) {
@@ -91,150 +103,169 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-secondary/10 flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-primary/10 p-6 flex flex-col gap-8">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white font-bold">H</div>
-          <span className="font-bold text-xl text-primary">HUB Admin</span>
+    <div className="min-h-screen bg-slate-50 flex">
+      {/* Sidebar ERP Style */}
+      <aside className="w-72 bg-white border-r border-slate-200 p-8 flex flex-col gap-10 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
+            <Database size={24} />
+          </div>
+          <div>
+            <h2 className="font-black text-xl tracking-tighter text-primary">HUB ERP</h2>
+            <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Gestão Fábrica</p>
+          </div>
         </div>
 
-        <nav className="space-y-2">
-          <Button 
-            variant={activeTab === "dashboard" ? "secondary" : "ghost"} 
-            className="w-full justify-start gap-3"
-            onClick={() => setActiveTab("dashboard")}
-          >
-            <LayoutDashboard size={20} /> Dashboard
-          </Button>
-          <Button 
-            variant={activeTab === "bookings" ? "secondary" : "ghost"} 
-            className="w-full justify-start gap-3"
-            onClick={() => setActiveTab("bookings")}
-          >
-            <CalendarIcon size={20} /> Agendamentos
-          </Button>
-          <Button 
-            variant={activeTab === "leads" ? "secondary" : "ghost"} 
-            className="w-full justify-start gap-3"
-            onClick={() => setActiveTab("leads")}
-          >
-            <Users size={20} /> Leads
-          </Button>
-          <Button 
-            variant={activeTab === "settings" ? "secondary" : "ghost"} 
-            className="w-full justify-start gap-3 mt-auto"
-            onClick={() => setActiveTab("settings")}
-          >
-            <Settings size={20} /> Configurações
-          </Button>
+        <nav className="space-y-1">
+          {[
+            { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+            { id: 'bookings', icon: CalendarIcon, label: 'Agendamentos' },
+            { id: 'leads', icon: Users, label: 'Leads & CRM' },
+            { id: 'settings', icon: Settings, label: 'Configurações' },
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl font-bold transition-all ${
+                activeTab === item.id 
+                ? 'bg-primary text-white shadow-md shadow-primary/20' 
+                : 'text-slate-500 hover:bg-slate-100'
+              }`}
+            >
+              <item.icon size={20} />
+              {item.label}
+            </button>
+          ))}
         </nav>
+
+        <div className="mt-auto p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+          <p className="text-xs font-bold text-slate-400 mb-4 uppercase tracking-widest">Ações Rápidas</p>
+          <Button 
+            onClick={runSeed} 
+            disabled={isSeeding}
+            variant="outline" 
+            className="w-full gap-2 border-dashed border-2 hover:border-primary hover:text-primary transition-all"
+          >
+            <RefreshCw size={16} className={isSeeding ? 'animate-spin' : ''} />
+            {isSeeding ? 'Populando...' : 'Rodar Seed'}
+          </Button>
+        </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-10 overflow-y-auto">
-        <header className="mb-10 flex justify-between items-center">
+      <main className="flex-1 p-12 overflow-y-auto">
+        <header className="mb-12 flex justify-between items-end">
           <div>
-            <h1 className="text-3xl font-bold capitalize">{activeTab}</h1>
-            <p className="text-muted-foreground">Gerenciamento do HUB FDS.</p>
+            <h1 className="text-4xl font-black text-slate-900 capitalize mb-2">{activeTab}</h1>
+            <p className="text-slate-500 font-medium">Controle total da operação do HUB FDS.</p>
           </div>
-          <div className="flex gap-3">
-            <Button onClick={fetchData} variant="outline">Atualizar</Button>
-          </div>
+          <Button onClick={fetchData} variant="secondary" className="rounded-xl gap-2">
+            <RefreshCw size={18} /> Atualizar
+          </Button>
         </header>
 
         {activeTab === "dashboard" && (
-          <div className="grid md:grid-cols-3 gap-6 mb-10">
-            <Card className="bg-primary text-white">
-              <CardHeader><CardTitle className="text-sm opacity-80">Agendamentos</CardTitle></CardHeader>
-              <CardContent><div className="text-4xl font-bold">{bookings.length}</div></CardContent>
+          <div className="grid md:grid-cols-3 gap-8 mb-12">
+            <Card className="border-none shadow-xl shadow-slate-200/50 rounded-[2.5rem] p-4">
+              <CardHeader><CardTitle className="text-slate-400 text-xs uppercase tracking-widest font-black">Agendamentos</CardTitle></CardHeader>
+              <CardContent><div className="text-5xl font-black text-primary">{bookings.length}</div></CardContent>
             </Card>
-            <Card>
-              <CardHeader><CardTitle className="text-sm text-muted-foreground">Leads Ativos</CardTitle></CardHeader>
-              <CardContent><div className="text-4xl font-bold text-primary">{leads.length}</div></CardContent>
+            <Card className="border-none shadow-xl shadow-slate-200/50 rounded-[2.5rem] p-4">
+              <CardHeader><CardTitle className="text-slate-400 text-xs uppercase tracking-widest font-black">Leads Ativos</CardTitle></CardHeader>
+              <CardContent><div className="text-5xl font-black text-slate-900">{leads.length}</div></CardContent>
             </Card>
-            <Card>
-              <CardHeader><CardTitle className="text-sm text-muted-foreground">Pendentes</CardTitle></CardHeader>
-              <CardContent><div className="text-4xl font-bold text-orange-500">{bookings.filter(b => b.status === 'pending').length}</div></CardContent>
+            <Card className="border-none shadow-xl shadow-slate-200/50 rounded-[2.5rem] p-4 bg-primary">
+              <CardHeader><CardTitle className="text-white/60 text-xs uppercase tracking-widest font-black">Pendentes</CardTitle></CardHeader>
+              <CardContent><div className="text-5xl font-black text-white">{bookings.filter(b => b.status === 'pending').length}</div></CardContent>
             </Card>
           </div>
         )}
 
         {(activeTab === "bookings" || activeTab === "leads") && (
-          <Card className="rounded-3xl overflow-hidden border-none shadow-xl shadow-primary/5">
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-secondary/20">
-                    <TableHead>Nome / Contato</TableHead>
-                    <TableHead>{activeTab === "bookings" ? "Data/Hora" : "Origem"}</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(activeTab === "bookings" ? bookings : leads).map((item: any) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <div className="font-medium">{item.name}</div>
-                        <div className="text-xs text-muted-foreground">{item.email}</div>
-                      </TableCell>
-                      <TableCell>
-                        {activeTab === "bookings" ? (
-                          <>
-                            <div>{new Date(item.date).toLocaleDateString('pt-BR')}</div>
-                            <div className="text-xs font-bold text-primary">{item.time}</div>
-                          </>
-                        ) : (
-                          <Badge variant="outline">{item.source}</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={item.status === 'confirmed' || item.status === 'qualified' ? 'bg-green-500' : 'bg-orange-500'}>
-                          {item.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button size="icon" variant="ghost" onClick={() => { setEditingItem(item); setIsEditDialogOpen(true); }}>
-                            <Edit3 size={18} />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="text-red-600" onClick={() => handleDelete(item.id, activeTab as any)}>
-                            <Trash2 size={18} />
-                          </Button>
+          <div className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200/60 overflow-hidden border border-slate-100">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-50/50 border-none">
+                  <TableHead className="py-6 px-8 font-black text-slate-400 uppercase text-[10px] tracking-widest">Informações</TableHead>
+                  <TableHead className="py-6 font-black text-slate-400 uppercase text-[10px] tracking-widest">{activeTab === "bookings" ? "Data/Hora" : "Origem"}</TableHead>
+                  <TableHead className="py-6 font-black text-slate-400 uppercase text-[10px] tracking-widest">Status</TableHead>
+                  <TableHead className="py-6 px-8 text-right font-black text-slate-400 uppercase text-[10px] tracking-widest">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(activeTab === "bookings" ? bookings : leads).map((item: any) => (
+                  <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors border-slate-50">
+                    <TableCell className="py-6 px-8">
+                      <div className="font-bold text-slate-900">{item.name}</div>
+                      <div className="text-xs text-slate-400 font-medium">{item.email}</div>
+                    </TableCell>
+                    <TableCell className="py-6">
+                      {activeTab === "bookings" ? (
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-700">{new Date(item.date).toLocaleDateString('pt-BR')}</span>
+                          <span className="text-xs font-black text-primary">{item.time}</span>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                      ) : (
+                        <Badge variant="secondary" className="rounded-lg">{item.source}</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="py-6">
+                      <Badge className={`rounded-lg px-3 py-1 font-bold ${
+                        ['confirmed', 'qualified'].includes(item.status) ? 'bg-emerald-500' : 'bg-amber-500'
+                      }`}>
+                        {item.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="py-6 px-8 text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button 
+                          size="icon" 
+                          variant="secondary" 
+                          className="rounded-xl hover:bg-primary hover:text-white transition-all"
+                          onClick={() => { setEditingItem(item); setIsEditDialogOpen(true); }}
+                        >
+                          <Edit3 size={18} />
+                        </Button>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="rounded-xl text-red-500 hover:bg-red-50"
+                          onClick={() => handleDelete(item.id, activeTab as any)}
+                        >
+                          <Trash2 size={18} />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
 
-        {/* Modal de Edição */}
+        {/* Modal de Edição ERP */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[500px] rounded-[2.5rem] p-10">
             <DialogHeader>
-              <DialogTitle>Editar {activeTab === "bookings" ? "Agendamento" : "Lead"}</DialogTitle>
+              <DialogTitle className="text-2xl font-black text-slate-900">Editar Registro</DialogTitle>
             </DialogHeader>
             {editingItem && (
-              <form onSubmit={handleUpdate} className="space-y-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Nome</Label>
-                  <Input id="name" value={editingItem.name || ""} onChange={(e) => setEditingItem({...editingItem, name: e.target.value})} />
+              <form onSubmit={handleUpdate} className="space-y-6 py-6">
+                <div className="grid gap-3">
+                  <Label className="font-bold text-slate-500 uppercase text-[10px] tracking-widest">Nome Completo</Label>
+                  <Input className="rounded-2xl py-6 border-slate-200" value={editingItem.name || ""} onChange={(e) => setEditingItem({...editingItem, name: e.target.value})} />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="email">E-mail</Label>
-                  <Input id="email" value={editingItem.email || ""} onChange={(e) => setEditingItem({...editingItem, email: e.target.value})} />
+                <div className="grid gap-3">
+                  <Label className="font-bold text-slate-500 uppercase text-[10px] tracking-widest">E-mail de Contato</Label>
+                  <Input className="rounded-2xl py-6 border-slate-200" value={editingItem.email || ""} onChange={(e) => setEditingItem({...editingItem, email: e.target.value})} />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="status">Status</Label>
+                <div className="grid gap-3">
+                  <Label className="font-bold text-slate-500 uppercase text-[10px] tracking-widest">Status Operacional</Label>
                   <Select value={editingItem.status} onValueChange={(val) => setEditingItem({...editingItem, status: val})}>
-                    <SelectTrigger>
+                    <SelectTrigger className="rounded-2xl py-6 border-slate-200">
                       <SelectValue placeholder="Selecione o status" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="rounded-2xl">
                       {activeTab === "bookings" ? (
                         <>
                           <SelectItem value="pending">Pendente</SelectItem>
@@ -243,16 +274,16 @@ const AdminDashboard = () => {
                         </>
                       ) : (
                         <>
-                          <SelectItem value="new">Novo</SelectItem>
-                          <SelectItem value="contacted">Contatado</SelectItem>
+                          <SelectItem value="new">Novo Lead</SelectItem>
+                          <SelectItem value="contacted">Em Contato</SelectItem>
                           <SelectItem value="qualified">Qualificado</SelectItem>
                         </>
                       )}
                     </SelectContent>
                   </Select>
                 </div>
-                <DialogFooter>
-                  <Button type="submit">Salvar Alterações</Button>
+                <DialogFooter className="pt-6">
+                  <Button type="submit" className="w-full py-8 rounded-2xl text-lg font-bold shadow-xl shadow-primary/20">Salvar Alterações</Button>
                 </DialogFooter>
               </form>
             )}
