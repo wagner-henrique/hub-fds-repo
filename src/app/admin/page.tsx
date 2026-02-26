@@ -9,7 +9,6 @@ import {
   Trash2,
   Edit3,
   RefreshCw,
-  Mail,
   Phone
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -159,6 +158,7 @@ const AdminDashboard = () => {
                       <TableCell className="py-4 px-6">
                         <div className="font-bold">{item.name}</div>
                         <div className="text-xs text-muted-foreground">{item.email}</div>
+                        {item.phone && <div className="text-[10px] font-bold text-primary flex items-center gap-1 mt-1"><Phone size={10} /> {item.phone}</div>}
                       </TableCell>
                       <TableCell>
                         {activeTab === "bookings" ? (
@@ -207,6 +207,10 @@ const AdminDashboard = () => {
                 <div className="grid gap-2">
                   <Label htmlFor="email">E-mail</Label>
                   <Input id="email" className="rounded-xl" value={editingItem.email || ""} onChange={(e) => setEditingItem({...editingItem, email: e.target.value})} />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="phone">Telefone</Label>
+                  <Input id="phone" className="rounded-xl" value={editingItem.phone || ""} onChange={(e) => setEditingItem({...editingItem, phone: e.target.value})} />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="status">Status</Label>

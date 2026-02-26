@@ -15,9 +15,9 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, email, date, time } = body;
+    const { name, email, phone, date, time } = body;
 
-    if (!name || !email || !date || !time) {
+    if (!name || !email || !phone || !date || !time) {
       return NextResponse.json({ error: "Carga de dados incompleta" }, { status: 400 });
     }
 
@@ -25,13 +25,16 @@ export async function POST(request: Request) {
       data: {
         name,
         email,
+        phone,
         date: new Date(date),
         time,
+        status: "pending"
       },
     });
 
     return NextResponse.json(booking, { status: 201 });
   } catch (error) {
+    console.error(error);
     return NextResponse.json({ error: "Falha na persistência de dados" }, { status: 500 });
   }
 }
