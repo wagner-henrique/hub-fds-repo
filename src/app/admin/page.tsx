@@ -11,13 +11,17 @@ import {
   Trash2,
   Mail,
   Phone,
-  ExternalLink
+  Edit3,
+  Plus
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { showSuccess, showError } from '@/utils/toast';
 
 const AdminDashboard = () => {
@@ -25,6 +29,10 @@ const AdminDashboard = () => {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("dashboard");
+  
+  // Estados para edição
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -48,28 +56,33 @@ const AdminDashboard = () => {
     fetchData();
   }, []);
 
-  const updateBookingStatus = async (id: string, status: string) => {
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const endpoint = activeTab === "bookings" ? `/api/bookings/${editingItem.id}` : `/api/leads/${editingItem.id}`;
+    
     try {
-      const res = await fetch(`/api/bookings/${id}`, {
+      const res = await fetch(endpoint, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
+        body: JSON.stringify(editingItem)
       });
+      
       if (res.ok) {
-        showSuccess(`Status atualizado para ${status}`);
+        showSuccess("Atualizado com sucesso!");
+        setIsEditDialogOpen(false);
         fetchData();
       }
     } catch (error) {
-      showError("Erro ao atualizar status.");
+      showError("Erro ao atualizar.");
     }
   };
 
-  const deleteBooking = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir este agendamento?")) return;
+  const handleDelete = async (id: string, type: 'bookings' | 'leads') => {
+    if (!confirm("Tem certeza que deseja excluir?")) return;
     try {
-      const res = await fetch(`/api/bookings/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/${type}/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        showSuccess("Agendamento removido.");
+        showSuccess("Removido com sucesso.");
         fetchData();
       }
     } catch (error) {
@@ -123,110 +136,70 @@ const AdminDashboard = () => {
         <header className="mb-10 flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold capitalize">{activeTab}</h1>
-            <p className="text-muted-foreground">Gerenciamento centralizado do HUB FDS.</p>
+            <p className="text-muted-foreground">Gerenciamento do HUB FDS.</p>
           </div>
-          <Button onClick={fetchData} variant="outline" size="sm">Atualizar Dados</Button>
+          <div className="flex gap-3">
+            <Button onClick={fetchData} variant="outline">Atualizar</Button>
+          </div>
         </header>
 
         {activeTab === "dashboard" && (
-          <div className="space-y-10">
-            <div className="grid md:grid-cols-3 gap-6">
-              <Card className="bg-primary text-white">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium opacity-80">Total de Reservas</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-4xl font-bold">{bookings.length}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Novos Leads</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-4xl font-bold text-primary">{leads.length}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Aguardando Confirmação</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-4xl font-bold text-orange-500">
-                    {bookings.filter(b => b.status === 'pending').length}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card className="rounded-3xl border-none shadow-xl shadow-primary/5">
-              <CardHeader>
-                <CardTitle>Atividade Recente</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {bookings.slice(0, 5).map((b: any) => (
-                    <div key={b.id} className="flex items-center justify-between p-4 bg-secondary/20 rounded-2xl">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-primary font-bold">
-                          {b.name[0]}
-                        </div>
-                        <div>
-                          <p className="font-bold">{b.name}</p>
-                          <p className="text-xs text-muted-foreground">{b.time} - {new Date(b.date).toLocaleDateString()}</p>
-                        </div>
-                      </div>
-                      <Badge variant={b.status === 'confirmed' ? 'default' : 'secondary'}>{b.status}</Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
+          <div className="grid md:grid-cols-3 gap-6 mb-10">
+            <Card className="bg-primary text-white">
+              <CardHeader><CardTitle className="text-sm opacity-80">Agendamentos</CardTitle></CardHeader>
+              <CardContent><div className="text-4xl font-bold">{bookings.length}</div></CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle className="text-sm text-muted-foreground">Leads Ativos</CardTitle></CardHeader>
+              <CardContent><div className="text-4xl font-bold text-primary">{leads.length}</div></CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle className="text-sm text-muted-foreground">Pendentes</CardTitle></CardHeader>
+              <CardContent><div className="text-4xl font-bold text-orange-500">{bookings.filter(b => b.status === 'pending').length}</div></CardContent>
             </Card>
           </div>
         )}
 
-        {activeTab === "bookings" && (
+        {(activeTab === "bookings" || activeTab === "leads") && (
           <Card className="rounded-3xl overflow-hidden border-none shadow-xl shadow-primary/5">
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-secondary/20">
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Data/Hora</TableHead>
+                    <TableHead>Nome / Contato</TableHead>
+                    <TableHead>{activeTab === "bookings" ? "Data/Hora" : "Origem"}</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {bookings.map((booking: any) => (
-                    <TableRow key={booking.id}>
+                  {(activeTab === "bookings" ? bookings : leads).map((item: any) => (
+                    <TableRow key={item.id}>
                       <TableCell>
-                        <div className="font-medium">{booking.name}</div>
-                        <div className="text-xs text-muted-foreground">{booking.email}</div>
+                        <div className="font-medium">{item.name}</div>
+                        <div className="text-xs text-muted-foreground">{item.email}</div>
                       </TableCell>
                       <TableCell>
-                        <div>{new Date(booking.date).toLocaleDateString('pt-BR')}</div>
-                        <div className="text-xs font-bold text-primary">{booking.time}</div>
+                        {activeTab === "bookings" ? (
+                          <>
+                            <div>{new Date(item.date).toLocaleDateString('pt-BR')}</div>
+                            <div className="text-xs font-bold text-primary">{item.time}</div>
+                          </>
+                        ) : (
+                          <Badge variant="outline">{item.source}</Badge>
+                        )}
                       </TableCell>
                       <TableCell>
-                        <Badge 
-                          className={
-                            booking.status === 'confirmed' ? 'bg-green-500' : 
-                            booking.status === 'cancelled' ? 'bg-red-500' : 'bg-orange-500'
-                          }
-                        >
-                          {booking.status}
+                        <Badge className={item.status === 'confirmed' || item.status === 'qualified' ? 'bg-green-500' : 'bg-orange-500'}>
+                          {item.status}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button size="icon" variant="ghost" onClick={() => updateBookingStatus(booking.id, 'confirmed')} className="text-green-600">
-                            <CheckCircle2 size={18} />
+                          <Button size="icon" variant="ghost" onClick={() => { setEditingItem(item); setIsEditDialogOpen(true); }}>
+                            <Edit3 size={18} />
                           </Button>
-                          <Button size="icon" variant="ghost" onClick={() => updateBookingStatus(booking.id, 'cancelled')} className="text-orange-600">
-                            <XCircle size={18} />
-                          </Button>
-                          <Button size="icon" variant="ghost" onClick={() => deleteBooking(booking.id)} className="text-red-600">
+                          <Button size="icon" variant="ghost" className="text-red-600" onClick={() => handleDelete(item.id, activeTab as any)}>
                             <Trash2 size={18} />
                           </Button>
                         </div>
@@ -239,59 +212,52 @@ const AdminDashboard = () => {
           </Card>
         )}
 
-        {activeTab === "leads" && (
-          <Card className="rounded-3xl overflow-hidden border-none shadow-xl shadow-primary/5">
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-secondary/20">
-                    <TableHead>Lead</TableHead>
-                    <TableHead>Origem</TableHead>
-                    <TableHead>Data de Cadastro</TableHead>
-                    <TableHead className="text-right">Contato</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {leads.map((lead: any) => (
-                    <TableRow key={lead.id}>
-                      <TableCell>
-                        <div className="font-medium">{lead.name || 'Sem nome'}</div>
-                        <div className="text-xs text-muted-foreground">{lead.email}</div>
-                      </TableCell>
-                      <TableCell><Badge variant="outline">{lead.source}</Badge></TableCell>
-                      <TableCell>{new Date(lead.createdAt).toLocaleDateString('pt-BR')}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <a href={`mailto:${lead.email}`}><Button size="icon" variant="ghost"><Mail size={18} /></Button></a>
-                          <Button size="icon" variant="ghost"><Phone size={18} /></Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        )}
-
-        {activeTab === "settings" && (
-          <div className="max-w-2xl space-y-6">
-            <Card>
-              <CardHeader><CardTitle>Configurações do Sistema</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
+        {/* Modal de Edição */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Editar {activeTab === "bookings" ? "Agendamento" : "Lead"}</DialogTitle>
+            </DialogHeader>
+            {editingItem && (
+              <form onSubmit={handleUpdate} className="space-y-4 py-4">
                 <div className="grid gap-2">
-                  <label className="text-sm font-bold">Nome do HUB</label>
-                  <input className="p-3 rounded-xl border bg-secondary/20" defaultValue="HUB FDS - Fábrica de Sonhos" />
+                  <Label htmlFor="name">Nome</Label>
+                  <Input id="name" value={editingItem.name || ""} onChange={(e) => setEditingItem({...editingItem, name: e.target.value})} />
                 </div>
                 <div className="grid gap-2">
-                  <label className="text-sm font-bold">E-mail de Notificação</label>
-                  <input className="p-3 rounded-xl border bg-secondary/20" defaultValue="contato@hubfds.br" />
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input id="email" value={editingItem.email || ""} onChange={(e) => setEditingItem({...editingItem, email: e.target.value})} />
                 </div>
-                <Button className="w-full">Salvar Alterações</Button>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+                <div className="grid gap-2">
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={editingItem.status} onValueChange={(val) => setEditingItem({...editingItem, status: val})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeTab === "bookings" ? (
+                        <>
+                          <SelectItem value="pending">Pendente</SelectItem>
+                          <SelectItem value="confirmed">Confirmado</SelectItem>
+                          <SelectItem value="cancelled">Cancelado</SelectItem>
+                        </>
+                      ) : (
+                        <>
+                          <SelectItem value="new">Novo</SelectItem>
+                          <SelectItem value="contacted">Contatado</SelectItem>
+                          <SelectItem value="qualified">Qualificado</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <DialogFooter>
+                  <Button type="submit">Salvar Alterações</Button>
+                </DialogFooter>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
