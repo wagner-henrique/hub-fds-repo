@@ -9,7 +9,9 @@ import {
   Trash2,
   Edit3,
   RefreshCw,
-  Phone
+  Phone,
+  TrendingUp,
+  Clock
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -83,12 +85,12 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-secondary/10 flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-primary/10 p-6 flex flex-col gap-8">
+    <div className="min-h-screen bg-background flex">
+      {/* Sidebar conforme imagem */}
+      <aside className="w-72 bg-white border-r border-slate-100 p-8 flex flex-col gap-10">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white font-bold">H</div>
-          <span className="font-bold text-xl text-primary">HUB Admin</span>
+          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white font-bold text-xl">H</div>
+          <span className="font-bold text-2xl text-primary tracking-tight">HUB Admin</span>
         </div>
 
         <nav className="space-y-2">
@@ -98,103 +100,187 @@ const AdminDashboard = () => {
             { id: 'leads', icon: Users, label: 'Leads' },
             { id: 'settings', icon: Settings, label: 'Configurações' },
           ].map((item) => (
-            <Button
+            <button
               key={item.id}
-              variant={activeTab === item.id ? "secondary" : "ghost"}
-              className={`w-full justify-start gap-3 ${activeTab === item.id ? 'bg-primary/10 text-primary' : ''}`}
               onClick={() => setActiveTab(item.id)}
+              className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all ${
+                activeTab === item.id 
+                ? 'bg-accent text-white shadow-lg shadow-accent/20' 
+                : 'text-slate-400 hover:text-primary hover:bg-primary/5'
+              }`}
             >
               <item.icon size={20} />
               {item.label}
-            </Button>
+            </button>
           ))}
         </nav>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-10 overflow-y-auto">
-        <header className="mb-10 flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold capitalize">{activeTab}</h1>
-            <p className="text-muted-foreground">Gerenciamento centralizado do HUB FDS.</p>
-          </div>
-          <Button onClick={fetchData} variant="outline" size="sm" className="gap-2">
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Atualizar
-          </Button>
+      <main className="flex-1 p-12 overflow-y-auto">
+        <header className="mb-12">
+          <h1 className="text-4xl font-bold text-slate-900 mb-2">Visão Geral</h1>
+          <p className="text-slate-400 font-medium">Gerencie as reservas e contatos do HUB FDS.</p>
         </header>
 
         {activeTab === "dashboard" && (
-          <div className="grid md:grid-cols-3 gap-6 mb-10">
-            <Card className="bg-primary text-white border-none shadow-lg shadow-primary/10">
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium opacity-80">Agendamentos</CardTitle></CardHeader>
-              <CardContent><div className="text-4xl font-bold">{bookings.length}</div></CardContent>
-            </Card>
-            <Card className="border-none shadow-lg shadow-primary/5">
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Leads Ativos</CardTitle></CardHeader>
-              <CardContent><div className="text-4xl font-bold text-primary">{leads.length}</div></CardContent>
-            </Card>
-            <Card className="border-none shadow-lg shadow-primary/5">
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Pendentes</CardTitle></CardHeader>
-              <CardContent><div className="text-4xl font-bold text-orange-500">{bookings.filter(b => b.status === 'pending').length}</div></CardContent>
-            </Card>
-          </div>
-        )}
+          <>
+            <div className="grid md:grid-cols-3 gap-8 mb-12">
+              <Card className="border-none shadow-sm rounded-[2rem] p-6 bg-white">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <p className="text-slate-500 font-bold text-sm mb-1">Total de Reservas</p>
+                    <h3 className="text-4xl font-black text-slate-900">{bookings.length}</h3>
+                  </div>
+                  <div className="p-3 bg-primary/10 rounded-xl text-primary">
+                    <CalendarIcon size={24} />
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400 font-bold">+12% em relação ao mês passado</p>
+              </Card>
 
-        {(activeTab === "bookings" || activeTab === "leads") && (
-          <Card className="rounded-3xl overflow-hidden border-none shadow-xl shadow-primary/5">
-            <CardContent className="p-0">
+              <Card className="border-none shadow-sm rounded-[2rem] p-6 bg-white">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <p className="text-slate-500 font-bold text-sm mb-1">Novos Leads</p>
+                    <h3 className="text-4xl font-black text-slate-900">{leads.length}</h3>
+                  </div>
+                  <div className="p-3 bg-primary/10 rounded-xl text-primary">
+                    <Users size={24} />
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400 font-bold">+5 hoje</p>
+              </Card>
+
+              <Card className="border-none shadow-sm rounded-[2rem] p-6 bg-white">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <p className="text-slate-500 font-bold text-sm mb-1">Taxa de Conversão</p>
+                    <h3 className="text-4xl font-black text-slate-900">24%</h3>
+                  </div>
+                  <div className="p-3 bg-primary/10 rounded-xl text-primary">
+                    <Clock size={24} />
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400 font-bold">Média de 3.2 dias para fechamento</p>
+              </Card>
+            </div>
+
+            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-50 overflow-hidden">
+              <div className="p-8 border-b border-slate-50">
+                <h2 className="text-2xl font-bold text-slate-900">Agendamentos Recentes</h2>
+              </div>
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-secondary/20">
-                    <TableHead className="py-4 px-6">Informações</TableHead>
-                    <TableHead>{activeTab === "bookings" ? "Data/Hora" : "Origem"}</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right px-6">Ações</TableHead>
+                  <TableRow className="bg-slate-50/30 border-none">
+                    <TableHead className="py-6 px-8 text-slate-400 font-bold">Cliente</TableHead>
+                    <TableHead className="py-6 text-slate-400 font-bold">Data</TableHead>
+                    <TableHead className="py-6 text-slate-400 font-bold">Horário</TableHead>
+                    <TableHead className="py-6 text-slate-400 font-bold">Status</TableHead>
+                    <TableHead className="py-6 px-8 text-right text-slate-400 font-bold">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(activeTab === "bookings" ? bookings : leads).map((item: any) => (
-                    <TableRow key={item.id} className="hover:bg-secondary/5 transition-colors">
-                      <TableCell className="py-4 px-6">
-                        <div className="font-bold">{item.name}</div>
-                        <div className="text-xs text-muted-foreground">{item.email}</div>
-                        {item.phone && <div className="text-[10px] font-bold text-primary flex items-center gap-1 mt-1"><Phone size={10} /> {item.phone}</div>}
-                      </TableCell>
-                      <TableCell>
-                        {activeTab === "bookings" ? (
-                          <div className="flex flex-col">
-                            <span className="font-medium">{new Date(item.date).toLocaleDateString('pt-BR')}</span>
-                            <span className="text-xs font-bold text-primary">{item.time}</span>
-                          </div>
-                        ) : (
-                          <Badge variant="outline">{item.source}</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={['confirmed', 'qualified'].includes(item.status) ? 'bg-primary' : 'bg-orange-500'}>
-                          {item.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right px-6">
-                        <div className="flex justify-end gap-1">
-                          <Button size="icon" variant="ghost" onClick={() => { setEditingItem(item); setIsEditDialogOpen(true); }}>
-                            <Edit3 size={18} className="text-primary" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="text-red-500" onClick={() => handleDelete(item.id, activeTab as any)}>
-                            <Trash2 size={18} />
-                          </Button>
-                        </div>
+                  {bookings.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-20 text-center text-slate-400 font-medium">
+                        Nenhum agendamento encontrado.
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    bookings.slice(0, 5).map((item: any) => (
+                      <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors border-slate-50">
+                        <TableCell className="py-6 px-8">
+                          <div className="font-bold text-slate-900">{item.name}</div>
+                          <div className="text-xs text-slate-400">{item.email}</div>
+                        </TableCell>
+                        <TableCell className="py-6 font-medium text-slate-600">
+                          {new Date(item.date).toLocaleDateString('pt-BR')}
+                        </TableCell>
+                        <TableCell className="py-6 font-bold text-primary">
+                          {item.time}
+                        </TableCell>
+                        <TableCell className="py-6">
+                          <Badge className={`rounded-lg px-3 py-1 font-bold ${
+                            item.status === 'confirmed' ? 'bg-primary' : 'bg-amber-500'
+                          }`}>
+                            {item.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="py-6 px-8 text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button size="icon" variant="ghost" onClick={() => { setEditingItem(item); setIsEditDialogOpen(true); }}>
+                              <Edit3 size={18} className="text-primary" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="text-red-500" onClick={() => handleDelete(item.id, 'bookings')}>
+                              <Trash2 size={18} />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
+            </div>
+          </>
+        )}
+
+        {(activeTab === "bookings" || activeTab === "leads") && (
+          <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-50 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-50/30 border-none">
+                  <TableHead className="py-6 px-8 text-slate-400 font-bold">Informações</TableHead>
+                  <TableHead className="py-6 text-slate-400 font-bold">{activeTab === "bookings" ? "Data/Hora" : "Origem"}</TableHead>
+                  <TableHead className="py-6 text-slate-400 font-bold">Status</TableHead>
+                  <TableHead className="py-6 px-8 text-right text-slate-400 font-bold">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(activeTab === "bookings" ? bookings : leads).map((item: any) => (
+                  <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors border-slate-50">
+                    <TableCell className="py-6 px-8">
+                      <div className="font-bold text-slate-900">{item.name}</div>
+                      <div className="text-xs text-slate-400">{item.email}</div>
+                      {item.phone && <div className="text-[10px] font-bold text-primary flex items-center gap-1 mt-1"><Phone size={10} /> {item.phone}</div>}
+                    </TableCell>
+                    <TableCell className="py-6">
+                      {activeTab === "bookings" ? (
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-600">{new Date(item.date).toLocaleDateString('pt-BR')}</span>
+                          <span className="text-xs font-bold text-primary">{item.time}</span>
+                        </div>
+                      ) : (
+                        <Badge variant="outline" className="rounded-lg">{item.source}</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="py-6">
+                      <Badge className={`rounded-lg px-3 py-1 font-bold ${
+                        ['confirmed', 'qualified'].includes(item.status) ? 'bg-primary' : 'bg-amber-500'
+                      }`}>
+                        {item.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="py-6 px-8 text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button size="icon" variant="ghost" onClick={() => { setEditingItem(item); setIsEditDialogOpen(true); }}>
+                          <Edit3 size={18} className="text-primary" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="text-red-500" onClick={() => handleDelete(item.id, activeTab as any)}>
+                          <Trash2 size={18} />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
 
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[425px] rounded-3xl">
+          <DialogContent className="sm:max-w-[425px] rounded-[2rem]">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold">Editar Registro</DialogTitle>
             </DialogHeader>
