@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -13,7 +14,7 @@ model Booking {
   email     String
   date      DateTime
   time      String
-  status    String   @default("pending") // pending, confirmed, cancelled
+  status    String   @default("pending")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
