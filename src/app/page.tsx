@@ -21,17 +21,15 @@ export default function Home() {
         <VideoShowcase />
         
         <ScrollReveal>
-          <div className="scroll-reveal-item scroll-reveal">
-            <Spaces />
-          </div>
-          
-          <div className="scroll-reveal-item scroll-reveal">
-            <BookingSystem />
-          </div>
-          
-          <div className="scroll-reveal-item scroll-reveal">
-            <Contact />
-          </div>
+          <Spaces />
+        </ScrollReveal>
+        
+        <ScrollReveal delay={0.2}>
+          <BookingSystem />
+        </ScrollReveal>
+        
+        <ScrollReveal delay={0.2}>
+          <Contact />
         </ScrollReveal>
       </main>
 

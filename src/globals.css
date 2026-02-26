@@ -3,6 +3,10 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
   :root {
     --background: 180 20% 98%;
     --foreground: 185 50% 10%;
@@ -38,7 +42,6 @@
   .dark {
     --background: 185 50% 5%;
     --foreground: 180 20% 98%;
-    /* ... dark mode settings ... */
   }
 }
 
@@ -52,10 +55,25 @@
   }
 }
 
+/* Estilos para links com underline animado */
+.nav-link {
+  @apply relative py-1;
+}
+
+.nav-link::after {
+  content: '';
+  @apply absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-300 ease-out;
+}
+
+.nav-link:hover::after {
+  @apply w-full;
+}
+
+/* Melhorando o Scroll Reveal */
 .scroll-reveal {
   opacity: 0;
-  transform: translateY(20px);
-  transition: all 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateY(30px);
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .scroll-reveal.active {

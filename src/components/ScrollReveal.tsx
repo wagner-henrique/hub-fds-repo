@@ -1,39 +1,28 @@
 "use client";
 
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
+import { motion } from 'framer-motion';
 
 interface ScrollRevealProps {
   children: React.ReactNode;
   className?: string;
+  delay?: number;
 }
 
-export const ScrollReveal = ({ children, className = "" }: ScrollRevealProps) => {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const observerOptions = {
-      threshold: 0.1
-    };
-
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('active');
-        }
-      });
-    }, observerOptions);
-
-    if (ref.current) {
-      const elements = ref.current.querySelectorAll('.scroll-reveal-item');
-      elements.forEach(el => observer.observe(el));
-    }
-
-    return () => observer.disconnect();
-  }, []);
-
+export const ScrollReveal = ({ children, className = "", delay = 0 }: ScrollRevealProps) => {
   return (
-    <div ref={ref} className={className}>
+    <motion.div
+      initial={{ opacity: 0, y: 40 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-100px" }}
+      transition={{ 
+        duration: 0.8, 
+        delay: delay,
+        ease: [0.21, 0.47, 0.32, 0.98] 
+      }}
+      className={className}
+    >
       {children}
-    </div>
+    </motion.div>
   );
 };
