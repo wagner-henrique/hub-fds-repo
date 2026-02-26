@@ -3,11 +3,9 @@ import Navbar from '@/components/Navbar';
 import Hero from '@/components/Hero';
 import VideoShowcase from '@/components/VideoShowcase';
 import Spaces from '@/components/Spaces';
-import Stats from '@/components/Stats';
 import Testimonials from '@/components/Testimonials';
 import BookingSystem from '@/components/BookingSystem';
 import Contact from '@/components/Contact';
-import { MadeWithDyad } from "@/components/made-with-dyad";
 import { ScrollReveal } from '@/components/ScrollReveal';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -20,8 +18,7 @@ export default function Home() {
       <main>
         <Hero />
         
-        <ScrollReveal>
-          <Stats />
+        <ScrollReveal children={undefined}>
         </ScrollReveal>
 
         <VideoShowcase />
@@ -90,7 +87,6 @@ export default function Home() {
             </div>
           </div>
         </div>
-        <MadeWithDyad />
       </footer>
     </div>
   );

@@ -6,8 +6,8 @@ import { Quote } from 'lucide-react';
 
 const testimonials = [
   {
-    name: "Ricardo Santos",
-    role: "CEO da TechAlagoas",
+    name: "Wagner Henrique",
+    role: "CEO da PrimeCode",
     content: "O HUB FDS mudou a forma como nossa equipe colabora. O ambiente é inspirador e a infraestrutura é impecável.",
     avatar: "https://i.pravatar.cc/150?u=ricardo"
   },

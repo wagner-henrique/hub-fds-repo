@@ -25,7 +25,7 @@ const VideoShowcase = () => {
         className="relative w-full h-[90vh] overflow-hidden shadow-2xl"
       >
         <video 
-          src="https://i.imgur.com/RJ1SX1t.mp4" 
+          src="/showcase.webm" 
           autoPlay 
           muted 
           loop 
