@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Calendar as CalendarIcon, Clock } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, User, Mail, Phone } from 'lucide-react';
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,13 +14,12 @@ const timeSlots = [
 const BookingSystem = () => {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
   const [loading, setLoading] = useState(false);
 
   const handleBooking = async () => {
-    if (!selectedSlot || !name || !email) {
-      showError("Por favor, preencha todos os campos.");
+    if (!selectedSlot || !formData.name || !formData.email) {
+      showError("Por favor, preencha os campos obrigatórios.");
       return;
     }
 
@@ -30,17 +29,15 @@ const BookingSystem = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name,
-          email,
+          ...formData,
           date,
           time: selectedSlot
         }),
       });
 
       if (response.ok) {
-        showSuccess(`Horário de ${selectedSlot} pré-reservado com sucesso!`);
-        setName("");
-        setEmail("");
+        showSuccess(`Agendamento solicitado para ${selectedSlot}! Aguarde nossa confirmação.`);
+        setFormData({ name: "", email: "", phone: "" });
         setSelectedSlot(null);
       } else {
         throw new Error();
@@ -57,81 +54,65 @@ const BookingSystem = () => {
       <div className="container mx-auto px-6">
         <div className="bg-white rounded-[3rem] shadow-2xl shadow-primary/10 overflow-hidden border border-primary/10">
           <div className="grid md:grid-cols-2">
-            <div className="p-12 bg-primary text-white">
-              <h2 className="text-4xl font-bold mb-6">Verifique a Disponibilidade</h2>
-              <p className="text-primary-foreground/80 mb-12">
-                Escolha a data e o horário desejado para sua reunião ou evento. Nosso sistema mostra em tempo real os espaços livres.
-              </p>
+            <div className="p-12 bg-primary text-white flex flex-col justify-between">
+              <div>
+                <h2 className="text-4xl font-bold mb-6">Agende sua Visita</h2>
+                <p className="text-primary-foreground/80 mb-12">
+                  Escolha o melhor horário para conhecer nossa estrutura ou realizar sua reunião.
+                </p>
+              </div>
               
               <div className="space-y-6">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center">
-                    <CalendarIcon size={24} />
-                  </div>
-                  <div>
-                    <p className="font-bold">Agendamento Online</p>
-                    <p className="text-sm text-primary-foreground/60">Rápido e sem burocracia</p>
-                  </div>
+                  <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center"><CalendarIcon size={24} /></div>
+                  <div><p className="font-bold">Confirmação Rápida</p><p className="text-sm text-primary-foreground/60">Resposta em até 2h úteis</p></div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center">
-                    <Clock size={24} />
-                  </div>
-                  <div>
-                    <p className="font-bold">Flexibilidade Total</p>
-                    <p className="text-sm text-primary-foreground/60">Reserve por hora ou período</p>
-                  </div>
+                  <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center"><Clock size={24} /></div>
+                  <div><p className="font-bold">Horários Flexíveis</p><p className="text-sm text-primary-foreground/60">Segunda a Sexta, 08h às 18h</p></div>
                 </div>
               </div>
             </div>
 
-            <div className="p-12">
-              <div className="flex flex-col gap-6">
+            <div className="p-12 space-y-8">
+              <div className="grid gap-4">
+                <Input 
+                  placeholder="Nome completo" 
+                  value={formData.name} 
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="rounded-xl"
+                />
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Nome</label>
-                    <Input 
-                      placeholder="Seu nome" 
-                      value={name} 
-                      onChange={(e) => setName(e.target.value)}
-                      className="rounded-xl border-primary/10"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">E-mail</label>
-                    <Input 
-                      placeholder="seu@email.com" 
-                      type="email"
-                      value={email} 
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="rounded-xl border-primary/10"
-                    />
-                  </div>
+                  <Input 
+                    placeholder="E-mail" 
+                    type="email"
+                    value={formData.email} 
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    className="rounded-xl"
+                  />
+                  <Input 
+                    placeholder="WhatsApp" 
+                    value={formData.phone} 
+                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    className="rounded-xl"
+                  />
                 </div>
+              </div>
 
-                <div>
-                  <label className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-4 block">1. Selecione a Data</label>
-                  <div className="border rounded-2xl p-4 inline-block bg-secondary/20">
-                    <Calendar
-                      mode="single"
-                      selected={date}
-                      onSelect={setDate}
-                      className="rounded-md"
-                    />
-                  </div>
+              <div className="flex flex-col md:flex-row gap-8">
+                <div className="flex-1">
+                  <label className="text-xs font-bold uppercase text-muted-foreground mb-3 block">Data</label>
+                  <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-2xl border bg-secondary/10" />
                 </div>
-
-                <div>
-                  <label className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-4 block">2. Horários Disponíveis</label>
-                  <div className="grid grid-cols-4 gap-3">
+                <div className="flex-1">
+                  <label className="text-xs font-bold uppercase text-muted-foreground mb-3 block">Horário</label>
+                  <div className="grid grid-cols-2 gap-2">
                     {timeSlots.map((slot) => (
                       <button
                         key={slot}
                         onClick={() => setSelectedSlot(slot)}
                         className={`py-3 rounded-xl text-sm font-bold transition-all ${
-                          selectedSlot === slot 
-                          ? 'bg-primary text-white shadow-lg shadow-primary/30' 
-                          : 'bg-secondary/50 hover:bg-secondary text-primary'
+                          selectedSlot === slot ? 'bg-primary text-white' : 'bg-secondary/50 hover:bg-secondary'
                         }`}
                       >
                         {slot}
@@ -139,15 +120,15 @@ const BookingSystem = () => {
                     ))}
                   </div>
                 </div>
-
-                <Button 
-                  onClick={handleBooking}
-                  disabled={!selectedSlot || loading}
-                  className="w-full py-8 rounded-2xl text-lg font-bold bg-primary hover:bg-primary/90 transition-all"
-                >
-                  {loading ? 'Processando...' : selectedSlot ? `Reservar para ${selectedSlot}` : 'Selecione um horário'}
-                </Button>
               </div>
+
+              <Button 
+                onClick={handleBooking}
+                disabled={loading}
+                className="w-full py-8 rounded-2xl text-lg font-bold"
+              >
+                {loading ? 'Enviando...' : 'Solicitar Agendamento'}
+              </Button>
             </div>
           </div>
         </div>

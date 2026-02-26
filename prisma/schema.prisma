@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -12,17 +11,29 @@ model Booking {
   id        String   @id @default(cuid())
   name      String
   email     String
+  phone     String?
   date      DateTime
   time      String
-  status    String   @default("pending")
+  status    String   @default("pending") // pending, confirmed, cancelled, completed
+  notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Lead {
   id        String   @id @default(cuid())
-  email     String   @unique
   name      String?
-  source    String   @default("landing_page")
+  email     String   @unique
+  phone     String?
+  source    String   @default("landing_page") // newsletter, contact_form, etc
+  status    String   @default("new") // new, contacted, qualified, lost
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Setting {
+  id        String   @id @default("system_config")
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
 }

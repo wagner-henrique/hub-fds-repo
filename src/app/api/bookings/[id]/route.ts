@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
 export async function PATCH(
   request: Request,
@@ -7,23 +7,13 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json();
-    const { name, email, date, time, status } = body;
-
-    const updateData: any = {};
-    if (name) updateData.name = name;
-    if (email) updateData.email = email;
-    if (date) updateData.date = new Date(date);
-    if (time) updateData.time = time;
-    if (status) updateData.status = status;
-
     const booking = await prisma.booking.update({
       where: { id: params.id },
-      data: updateData,
+      data: body,
     });
-
     return NextResponse.json(booking);
   } catch (error) {
-    return NextResponse.json({ error: "Falha ao atualizar o registro" }, { status: 500 });
+    return NextResponse.json({ error: "Erro ao atualizar agendamento" }, { status: 500 });
   }
 }
 
@@ -35,9 +25,8 @@ export async function DELETE(
     await prisma.booking.delete({
       where: { id: params.id },
     });
-
-    return NextResponse.json({ message: "Registro removido do banco de dados" });
+    return NextResponse.json({ message: "Agendamento removido" });
   } catch (error) {
-    return NextResponse.json({ error: "Falha ao deletar o registro" }, { status: 500 });
+    return NextResponse.json({ error: "Erro ao deletar agendamento" }, { status: 500 });
   }
 }
