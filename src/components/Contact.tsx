@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { MapPin, Phone, Mail, Instagram } from 'lucide-react';
+import { MapPin, Phone, Instagram } from 'lucide-react';
 
 const Contact = () => {
   return (
@@ -37,7 +37,14 @@ const Contact = () => {
                 </div>
                 <div>
                   <h4 className="font-bold text-xl mb-1">Social</h4>
-                  <p className="text-muted-foreground">@hubfds_arapiraca</p>
+                  <a 
+                    href="https://www.instagram.com/hubfds.br/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    @hubfds.br
+                  </a>
                 </div>
               </div>
             </div>

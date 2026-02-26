@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import Hero from '@/components/Hero';
+import VideoShowcase from '@/components/VideoShowcase';
 import Spaces from '@/components/Spaces';
 import BookingSystem from '@/components/BookingSystem';
 import Contact from '@/components/Contact';
@@ -34,6 +35,8 @@ const Index = () => {
       <main>
         <Hero />
         
+        <VideoShowcase />
+        
         <div className="scroll-reveal">
           <Spaces />
         </div>
@@ -57,8 +60,8 @@ const Index = () => {
             © {new Date().getFullYear()} HUB FDS. Todos os direitos reservados.
           </p>
           <div className="flex gap-6">
+            <a href="https://www.instagram.com/hubfds.br/" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">Instagram</a>
             <a href="#" className="text-muted-foreground hover:text-primary transition-colors">Privacidade</a>
-            <a href="#" className="text-muted-foreground hover:text-primary transition-colors">Termos</a>
           </div>
         </div>
         <MadeWithDyad />
