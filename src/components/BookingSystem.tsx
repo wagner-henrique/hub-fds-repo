@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock } from 'lucide-react';
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
-import { showSuccess } from '@/utils/toast';
+import { Input } from "@/components/ui/input";
+import { showSuccess, showError } from '@/utils/toast';
 
 const timeSlots = [
   "08:00", "09:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00"
@@ -13,10 +14,42 @@ const timeSlots = [
 const BookingSystem = () => {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleBooking = () => {
-    if (!selectedSlot) return;
-    showSuccess(`Horário de ${selectedSlot} pré-reservado com sucesso!`);
+  const handleBooking = async () => {
+    if (!selectedSlot || !name || !email) {
+      showError("Por favor, preencha todos os campos.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          email,
+          date,
+          time: selectedSlot
+        }),
+      });
+
+      if (response.ok) {
+        showSuccess(`Horário de ${selectedSlot} pré-reservado com sucesso!`);
+        setName("");
+        setEmail("");
+        setSelectedSlot(null);
+      } else {
+        throw new Error();
+      }
+    } catch (error) {
+      showError("Erro ao realizar reserva. Tente novamente.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -53,7 +86,29 @@ const BookingSystem = () => {
             </div>
 
             <div className="p-12">
-              <div className="flex flex-col gap-8">
+              <div className="flex flex-col gap-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Nome</label>
+                    <Input 
+                      placeholder="Seu nome" 
+                      value={name} 
+                      onChange={(e) => setName(e.target.value)}
+                      className="rounded-xl border-primary/10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">E-mail</label>
+                    <Input 
+                      placeholder="seu@email.com" 
+                      type="email"
+                      value={email} 
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="rounded-xl border-primary/10"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-4 block">1. Selecione a Data</label>
                   <div className="border rounded-2xl p-4 inline-block bg-secondary/20">
@@ -87,10 +142,10 @@ const BookingSystem = () => {
 
                 <Button 
                   onClick={handleBooking}
-                  disabled={!selectedSlot}
+                  disabled={!selectedSlot || loading}
                   className="w-full py-8 rounded-2xl text-lg font-bold bg-primary hover:bg-primary/90 transition-all"
                 >
-                  {selectedSlot ? `Reservar para ${selectedSlot}` : 'Selecione um horário'}
+                  {loading ? 'Processando...' : selectedSlot ? `Reservar para ${selectedSlot}` : 'Selecione um horário'}
                 </Button>
               </div>
             </div>
