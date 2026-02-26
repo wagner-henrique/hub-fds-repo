@@ -59,7 +59,7 @@ export default function Home() {
             >
               Instagram
             </a>
-            <Link href="/privacidade" className="text-muted-foreground hover:text-primary transition-colors">
+            <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
               Privacidade
             </Link>
           </div>
