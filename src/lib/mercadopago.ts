@@ -4,7 +4,7 @@ const client = new MercadoPagoConfig({
   accessToken: process.env.MP_ACCESS_TOKEN || 'TEST-TOKEN' 
 });
 
-export const createBookingPreference = async (bookingId: string, name: string, email: string) => {
+export const createBookingPreference = async (bookingId: string, name: string, email: string, unitPrice: number) => {
   const preference = new Preference(client);
   
   const response = await preference.create({
@@ -14,7 +14,7 @@ export const createBookingPreference = async (bookingId: string, name: string, e
           id: bookingId,
           title: 'Reserva HUB FDS (50% Entrada)',
           quantity: 1,
-          unit_price: 50.00, 
+          unit_price: unitPrice, 
           currency_id: 'BRL',
         }
       ],

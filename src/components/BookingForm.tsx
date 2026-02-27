@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Calendar as CalendarIcon, Clock, User, Mail, Phone, Send, CreditCard } from 'lucide-react';
+import { User, Mail, Phone, Send, CreditCard, Loader2 } from 'lucide-react';
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,20 +21,52 @@ const BookingForm = ({ onSuccess }: BookingFormProps) => {
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
   const [loading, setLoading] = useState(false);
 
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.replace(/\D/g, '');
+    if (val.length > 11) val = val.slice(0, 11);
+    
+    if (val.length > 2) {
+      val = val.replace(/^(\d{2})(\d)/g, '($1) $2');
+    }
+    if (val.length > 9) {
+      val = val.replace(/(\d{5})(\d)/, '$1-$2');
+    } else if (val.length > 8) {
+      val = val.replace(/(\d{4})(\d)/, '$1-$2');
+    }
+    
+    setFormData({ ...formData, phone: val });
+  };
+
   const handleBooking = async () => {
     if (!selectedSlot || !formData.name || !formData.email || !formData.phone || !date) {
       showError("Por favor, preencha todos os campos e escolha um horário.");
       return;
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      showError("Insira um e-mail válido.");
+      return;
+    }
+
+    const phoneClean = formData.phone.replace(/\D/g, '');
+    if (phoneClean.length < 10) {
+      showError("Insira um WhatsApp válido.");
+      return;
+    }
+
     setLoading(true);
     try {
+      const formattedDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+
       const response = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
-          date: date.toISOString(),
+          name: formData.name,
+          email: formData.email,
+          phone: phoneClean,
+          date: formattedDate,
           time: selectedSlot
         }),
       });
@@ -42,16 +74,20 @@ const BookingForm = ({ onSuccess }: BookingFormProps) => {
       const data = await response.json();
 
       if (response.ok) {
-        showSuccess("Reserva criada! Redirecionando para o pagamento...");
+        showSuccess("Redirecionando para o ambiente seguro...");
         if (data.checkoutUrl) {
           window.location.href = data.checkoutUrl;
         }
-        if (onSuccess) onSuccess();
       } else {
-        throw new Error(data.error || "Erro ao realizar reserva.");
+        if (response.status === 409) {
+          showError("Este horário acabou de ser reservado. Escolha outro.");
+          setSelectedSlot(null);
+        } else {
+          throw new Error(data.error || "Erro ao processar a reserva.");
+        }
       }
     } catch (error: any) {
-      showError(error.message || "Erro ao realizar reserva. Tente novamente.");
+      showError(error.message || "Falha na comunicação com o servidor.");
     } finally {
       setLoading(false);
     }
@@ -79,7 +115,7 @@ const BookingForm = ({ onSuccess }: BookingFormProps) => {
             <Input 
               placeholder="(82) 99999-9999" 
               value={formData.phone} 
-              onChange={(e) => setFormData({...formData, phone: e.target.value})}
+              onChange={handlePhoneChange}
               className="pl-10 py-6 rounded-xl border-secondary bg-secondary/10 focus:bg-white transition-all"
             />
           </div>
@@ -106,7 +142,8 @@ const BookingForm = ({ onSuccess }: BookingFormProps) => {
           <Calendar 
             mode="single" 
             selected={date} 
-            onSelect={setDate} 
+            onSelect={setDate}
+            disabled={(currDate) => currDate < new Date(new Date().setHours(0, 0, 0, 0))}
             className="rounded-2xl border border-secondary/50 p-3 shadow-sm scale-90 origin-top-left" 
           />
         </div>
@@ -139,10 +176,12 @@ const BookingForm = ({ onSuccess }: BookingFormProps) => {
       <Button 
         onClick={handleBooking}
         disabled={loading}
-        className="w-full py-7 rounded-2xl text-base font-bold shadow-xl shadow-primary/20 gap-2"
+        className="w-full py-7 rounded-2xl text-base font-bold shadow-xl shadow-primary/20 gap-2 transition-all"
       >
-        {loading ? 'Processando...' : (
-          <>Ir para Pagamento <Send size={18} /></>
+        {loading ? (
+          <><Loader2 size={18} className="animate-spin" /> Processando Ambiente Seguro...</>
+        ) : (
+          <>Ir para Pagamento Seguro <Send size={18} /></>
         )}
       </Button>
     </div>

@@ -38,18 +38,38 @@ export async function POST(request: Request) {
     const body = await request.json();
     const validatedData = bookingSchema.parse(body);
 
+    const bookingDate = new Date(validatedData.date);
+    bookingDate.setUTCHours(0, 0, 0, 0);
+
+    const existingBooking = await prisma.booking.findFirst({
+      where: {
+        date: bookingDate,
+        time: validatedData.time,
+        status: {
+          in: ["confirmed", "pending_payment"]
+        }
+      }
+    });
+
+    if (existingBooking) {
+      return NextResponse.json({ error: "Horário indisponível" }, { status: 409 });
+    }
+
     const booking = await prisma.booking.create({
       data: {
         ...validatedData,
-        date: new Date(validatedData.date),
+        date: bookingDate,
         status: "pending_payment"
       },
     });
 
+    const unitPrice = 50.00; 
+
     const checkoutUrl = await createBookingPreference(
       booking.id,
       booking.name,
-      booking.email
+      booking.email,
+      unitPrice
     );
 
     return NextResponse.json({ booking, checkoutUrl }, { status: 201 });
