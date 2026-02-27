@@ -1,32 +1,38 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
+    
     const lead = await prisma.lead.update({
-      where: { id: params.id },
+      where: { id },
       data: body,
     });
+    
     return NextResponse.json(lead);
   } catch (error) {
-    return NextResponse.json({ error: "Erro ao atualizar lead" }, { status: 500 });
+    return NextResponse.json({ error: "Erro interno no servidor" }, { status: 500 });
   }
 }
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+    
     await prisma.lead.delete({
-      where: { id: params.id },
+      where: { id },
     });
-    return NextResponse.json({ message: "Lead removido" });
+    
+    return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: "Erro ao deletar lead" }, { status: 500 });
+    return NextResponse.json({ error: "Erro interno no servidor" }, { status: 500 });
   }
 }
