@@ -1,12 +1,11 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Calendar as CalendarIcon, Clock, User, Mail, Phone, Send } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, User, Mail, Phone, Send, CreditCard } from 'lucide-react';
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { showSuccess, showError } from '@/utils/toast';
-import { motion } from 'framer-motion';
 
 const timeSlots = [
   "08:00", "09:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00"
@@ -40,14 +39,16 @@ const BookingForm = ({ onSuccess }: BookingFormProps) => {
         }),
       });
 
+      const data = await response.json();
+
       if (response.ok) {
-        showSuccess(`Sucesso! Agendamento solicitado para ${selectedSlot}.`);
-        setFormData({ name: "", email: "", phone: "" });
-        setSelectedSlot(null);
+        showSuccess("Reserva criada! Redirecionando para o pagamento...");
+        if (data.checkoutUrl) {
+          window.location.href = data.checkoutUrl;
+        }
         if (onSuccess) onSuccess();
       } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Erro ao realizar reserva.");
+        throw new Error(data.error || "Erro ao realizar reserva.");
       }
     } catch (error: any) {
       showError(error.message || "Erro ao realizar reserva. Tente novamente.");
@@ -129,13 +130,19 @@ const BookingForm = ({ onSuccess }: BookingFormProps) => {
         </div>
       </div>
 
+      <div className="bg-primary/5 p-4 rounded-2xl border border-primary/10">
+        <p className="text-xs font-bold text-primary flex items-center gap-2">
+          <CreditCard size={14} /> Pagamento de 50% (R$ 50,00) para confirmação
+        </p>
+      </div>
+
       <Button 
         onClick={handleBooking}
         disabled={loading}
         className="w-full py-7 rounded-2xl text-base font-bold shadow-xl shadow-primary/20 gap-2"
       >
         {loading ? 'Processando...' : (
-          <>Confirmar Agendamento <Send size={18} /></>
+          <>Ir para Pagamento <Send size={18} /></>
         )}
       </Button>
     </div>

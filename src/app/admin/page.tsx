@@ -8,12 +8,12 @@ import {
   Settings,
   Trash2,
   Edit3,
-  RefreshCw,
   Phone,
-  TrendingUp,
-  Clock
+  Clock,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,22 +24,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { showSuccess, showError } from '@/utils/toast';
 
 const AdminDashboard = () => {
-  const [bookings, setBookings] = useState([]);
-  const [leads, setLeads] = useState([]);
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   
   const [editingItem, setEditingItem] = useState<any>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = async (currentPage: number) => {
     setLoading(true);
     try {
       const [bookingsRes, leadsRes] = await Promise.all([
-        fetch('/api/bookings'),
+        fetch(`/api/bookings?page=${currentPage}&limit=10`),
         fetch('/api/leads')
       ]);
-      setBookings(await bookingsRes.json());
+      const bookingsData = await bookingsRes.json();
+      setBookings(bookingsData.data || []);
+      setTotalPages(bookingsData.meta?.totalPages || 1);
       setLeads(await leadsRes.json());
     } catch (error) {
       showError("Erro ao carregar dados.");
@@ -49,44 +53,63 @@ const AdminDashboard = () => {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(page);
+  }, [page]);
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     const endpoint = activeTab === "bookings" ? `/api/bookings/${editingItem.id}` : `/api/leads/${editingItem.id}`;
+    
+    const previousState = activeTab === "bookings" ? [...bookings] : [...leads];
+    
+    if (activeTab === "bookings") {
+      setBookings(prev => prev.map(b => b.id === editingItem.id ? editingItem : b));
+    } else {
+      setLeads(prev => prev.map(l => l.id === editingItem.id ? editingItem : l));
+    }
+
+    setIsEditDialogOpen(false);
+
     try {
       const res = await fetch(endpoint, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingItem)
       });
-      if (res.ok) {
-        showSuccess("Registro atualizado!");
-        setIsEditDialogOpen(false);
-        fetchData();
-      }
+      
+      if (!res.ok) throw new Error();
+      showSuccess("Registro atualizado!");
     } catch (error) {
+      if (activeTab === "bookings") setBookings(previousState);
+      else setLeads(previousState);
       showError("Erro ao atualizar.");
     }
   };
 
   const handleDelete = async (id: string, type: 'bookings' | 'leads') => {
     if (!confirm("Deseja realmente excluir este registro?")) return;
+
+    const previousState = type === 'bookings' ? [...bookings] : [...leads];
+    
+    if (type === 'bookings') {
+      setBookings(prev => prev.filter(b => b.id !== id));
+    } else {
+      setLeads(prev => prev.filter(l => l.id !== id));
+    }
+
     try {
       const res = await fetch(`/api/${type}/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        showSuccess("Excluído com sucesso.");
-        fetchData();
-      }
+      if (!res.ok) throw new Error();
+      showSuccess("Excluído com sucesso.");
     } catch (error) {
+      if (type === 'bookings') setBookings(previousState);
+      else setLeads(previousState);
       showError("Erro ao excluir.");
     }
   };
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Sidebar conforme imagem */}
       <aside className="w-72 bg-white border-r border-slate-100 p-8 flex flex-col gap-10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white font-bold text-xl">H</div>
@@ -105,7 +128,7 @@ const AdminDashboard = () => {
               onClick={() => setActiveTab(item.id)}
               className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all ${
                 activeTab === item.id 
-                ? 'bg-accent text-white shadow-lg shadow-accent/20' 
+                ? 'bg-primary text-white shadow-lg shadow-primary/20' 
                 : 'text-slate-400 hover:text-primary hover:bg-primary/5'
               }`}
             >
@@ -116,11 +139,35 @@ const AdminDashboard = () => {
         </nav>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 p-12 overflow-y-auto">
-        <header className="mb-12">
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">Visão Geral</h1>
-          <p className="text-slate-400 font-medium">Gerencie as reservas e contatos do HUB FDS.</p>
+        <header className="mb-12 flex justify-between items-end">
+          <div>
+            <h1 className="text-4xl font-bold text-slate-900 mb-2">Visão Geral</h1>
+            <p className="text-slate-400 font-medium">Gerencie as reservas e contatos do HUB FDS.</p>
+          </div>
+          {activeTab === "bookings" && (
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                disabled={page === 1} 
+                onClick={() => setPage(p => p - 1)}
+                className="rounded-xl"
+              >
+                <ChevronLeft size={18} />
+              </Button>
+              <span className="text-sm font-bold px-4">Página {page} de {totalPages}</span>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                disabled={page === totalPages} 
+                onClick={() => setPage(p => p + 1)}
+                className="rounded-xl"
+              >
+                <ChevronRight size={18} />
+              </Button>
+            </div>
+          )}
         </header>
 
         {activeTab === "dashboard" && (
@@ -136,7 +183,7 @@ const AdminDashboard = () => {
                     <CalendarIcon size={24} />
                   </div>
                 </div>
-                <p className="text-xs text-slate-400 font-bold">+12% em relação ao mês passado</p>
+                <p className="text-xs text-slate-400 font-bold">Dados da página atual</p>
               </Card>
 
               <Card className="border-none shadow-sm rounded-[2rem] p-6 bg-white">
@@ -149,7 +196,7 @@ const AdminDashboard = () => {
                     <Users size={24} />
                   </div>
                 </div>
-                <p className="text-xs text-slate-400 font-bold">+5 hoje</p>
+                <p className="text-xs text-slate-400 font-bold">Total captado</p>
               </Card>
 
               <Card className="border-none shadow-sm rounded-[2rem] p-6 bg-white">
@@ -162,7 +209,7 @@ const AdminDashboard = () => {
                     <Clock size={24} />
                   </div>
                 </div>
-                <p className="text-xs text-slate-400 font-bold">Média de 3.2 dias para fechamento</p>
+                <p className="text-xs text-slate-400 font-bold">Média de fechamento</p>
               </Card>
             </div>
 
@@ -307,7 +354,7 @@ const AdminDashboard = () => {
                     <SelectContent className="rounded-xl">
                       {activeTab === "bookings" ? (
                         <>
-                          <SelectItem value="pending">Pendente</SelectItem>
+                          <SelectItem value="pending_payment">Aguardando Pagamento</SelectItem>
                           <SelectItem value="confirmed">Confirmado</SelectItem>
                           <SelectItem value="cancelled">Cancelado</SelectItem>
                         </>
