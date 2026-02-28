@@ -1,37 +1,59 @@
-import { MercadoPagoConfig, Preference } from 'mercadopago';
+import { MercadoPagoConfig, Payment, Preference } from 'mercadopago'
 
 const client = new MercadoPagoConfig({ 
-  accessToken: process.env.MP_ACCESS_TOKEN || 'TEST-TOKEN' 
-});
+  accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN as string,
+  options: { timeout: 5000 }
+})
 
-export const createBookingPreference = async (bookingId: string, name: string, email: string, unitPrice: number) => {
-  const preference = new Preference(client);
+export async function processDirectPayment(paymentData: any, externalReference: string) {
+  const payment = new Payment(client)
   
+  const payload = {
+    ...paymentData,
+    description: 'Reserva de Espaço - HUB FDS',
+    external_reference: externalReference
+  }
+
+  const response = await payment.create({
+    body: payload
+  })
+  
+  return response
+}
+
+export async function getPaymentById(paymentId: number | string) {
+  const payment = new Payment(client)
+  return payment.get({ id: String(paymentId) })
+}
+
+export async function createBookingPreference(id: string, name: string, email: string, price: number) {
+  const preference = new Preference(client)
+
   const response = await preference.create({
     body: {
       items: [
         {
-          id: bookingId,
-          title: 'Reserva HUB FDS (50% Entrada)',
+          id: 'reserva_hub_fds',
+          title: 'Reserva de Espaço - HUB FDS',
           quantity: 1,
-          unit_price: unitPrice, 
+          unit_price: price,
           currency_id: 'BRL',
         }
       ],
       payer: {
-        email: email,
-        name: name,
+        name,
+        email,
       },
+      external_reference: id,
       back_urls: {
-        success: `${process.env.NEXT_PUBLIC_URL}/booking/success`,
-        failure: `${process.env.NEXT_PUBLIC_URL}/booking/failure`,
-        pending: `${process.env.NEXT_PUBLIC_URL}/booking/pending`,
+        success: `${process.env.NEXT_PUBLIC_APP_URL}/sucesso`,
+        failure: `${process.env.NEXT_PUBLIC_APP_URL}/`,
+        pending: `${process.env.NEXT_PUBLIC_APP_URL}/`
       },
       auto_return: 'approved',
-      external_reference: bookingId,
-      notification_url: `${process.env.NEXT_PUBLIC_URL}/api/webhooks/mercadopago`,
+      notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhook/mercadopago`,
     }
-  });
+  })
 
-  return response.init_point;
-};
+  return response.init_point
+}

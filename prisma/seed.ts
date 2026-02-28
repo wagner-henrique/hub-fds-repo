@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -17,7 +18,7 @@ async function main() {
         phone: "82999999999",
         date: new Date(),
         time: "09:00",
-        status: "confirmed",
+        status: "CONFIRMED",
       },
       {
         name: "Mariana Costa",
@@ -25,7 +26,7 @@ async function main() {
         phone: "82888888888",
         date: new Date(),
         time: "14:00",
-        status: "pending",
+        status: "PENDING",
       }
     ]
   });
@@ -38,13 +39,13 @@ async function main() {
         email: "joao@startup.com",
         phone: "82777777777",
         source: "landing_page",
-        status: "new",
+        status: "NEW",
       },
       {
         name: "Empresa Inovação",
         email: "contato@inovacao.com",
         source: "newsletter",
-        status: "contacted",
+        status: "CONTACTED",
       }
     ]
   });
@@ -56,6 +57,31 @@ async function main() {
       value: "HUB FDS - Fábrica de Sonhos"
     }
   });
+
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH;
+
+  if (adminEmail && (adminPassword || adminPasswordHash)) {
+    const passwordHash = adminPasswordHash ?? await bcrypt.hash(adminPassword as string, 12);
+
+    await prisma.adminUser.upsert({
+      where: { email: adminEmail },
+      update: {
+        name: "Administrador",
+        passwordHash,
+        role: "ADMIN",
+        isActive: true,
+      },
+      create: {
+        name: "Administrador",
+        email: adminEmail,
+        passwordHash,
+        role: "ADMIN",
+        isActive: true,
+      },
+    });
+  }
 
   console.log("Seed finalizado com sucesso!");
 }

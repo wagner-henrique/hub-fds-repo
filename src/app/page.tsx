@@ -1,14 +1,14 @@
-import React from 'react';
-import Navbar from '@/components/Navbar';
-import Hero from '@/components/Hero';
-import VideoShowcase from '@/components/VideoShowcase';
-import Spaces from '@/components/Spaces';
-import Testimonials from '@/components/Testimonials';
-import BookingSystem from '@/components/BookingSystem';
-import Contact from '@/components/Contact';
-import { ScrollReveal } from '@/components/ScrollReveal';
-import Image from 'next/image';
-import Link from 'next/link';
+import React from 'react'
+import Navbar from '@/components/Navbar'
+import Hero from '@/components/Hero'
+import VideoShowcase from '@/components/VideoShowcase'
+import Spaces from '@/components/Spaces'
+import Testimonials from '@/components/Testimonials'
+import BookingSystem from '@/components/BookingSystem'
+import Contact from '@/components/Contact'
+import { ScrollReveal } from '@/components/ScrollReveal'
+import Image from 'next/image'
+import Link from 'next/link'
 
 export default function Home() {
   return (
@@ -18,9 +18,6 @@ export default function Home() {
       <main>
         <Hero />
         
-        <ScrollReveal children={undefined}>
-        </ScrollReveal>
-
         <VideoShowcase />
         
         <ScrollReveal>
@@ -61,7 +58,7 @@ export default function Home() {
             <div>
               <h4 className="font-bold mb-6">Links Rápidos</h4>
               <ul className="space-y-4 text-sm text-muted-foreground">
-                <li><Link href="#home" className="hover:text-primary transition-colors">Início</Link></li>
+                <li><Link href="/" className="hover:text-primary transition-colors">Início</Link></li>
                 <li><Link href="#espacos" className="hover:text-primary transition-colors">Espaços</Link></li>
                 <li><Link href="#reserva" className="hover:text-primary transition-colors">Reservas</Link></li>
                 <li><Link href="#contato" className="hover:text-primary transition-colors">Contato</Link></li>
@@ -70,9 +67,9 @@ export default function Home() {
             <div>
               <h4 className="font-bold mb-6">Social</h4>
               <ul className="space-y-4 text-sm text-muted-foreground">
-                <li><a href="https://www.instagram.com/hubfds.br/" target="_blank" className="hover:text-primary transition-colors">Instagram</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">LinkedIn</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">WhatsApp</a></li>
+                <li><a href="https://www.instagram.com/hubfds.br/" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Instagram</a></li>
+                <li><a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">LinkedIn</a></li>
+                <li><a href="https://wa.me/" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">WhatsApp</a></li>
               </ul>
             </div>
           </div>
@@ -82,12 +79,12 @@ export default function Home() {
               © {new Date().getFullYear()} HUB FDS - Fábrica de Sonhos. Todos os direitos reservados.
             </p>
             <div className="flex gap-8 text-sm text-muted-foreground">
-              <Link href="#" className="hover:text-primary transition-colors">Privacidade</Link>
-              <Link href="#" className="hover:text-primary transition-colors">Termos de Uso</Link>
+              <Link href="/privacidade" className="hover:text-primary transition-colors">Privacidade</Link>
+              <Link href="/termos" className="hover:text-primary transition-colors">Termos de Uso</Link>
             </div>
           </div>
         </div>
       </footer>
     </div>
-  );
+  )
 }

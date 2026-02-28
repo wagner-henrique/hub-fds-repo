@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 export async function POST() {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
+    }
+
     // Limpar dados existentes
     await prisma.booking.deleteMany();
     await prisma.lead.deleteMany();
@@ -16,7 +23,7 @@ export async function POST() {
           phone: "82999999999",
           date: new Date(),
           time: "09:00",
-          status: "confirmed",
+          status: "CONFIRMED",
         },
         {
           name: "Mariana Costa",
@@ -24,7 +31,7 @@ export async function POST() {
           phone: "82888888888",
           date: new Date(),
           time: "14:00",
-          status: "pending",
+          status: "PENDING",
         }
       ]
     });
@@ -37,13 +44,13 @@ export async function POST() {
           email: "joao@startup.com",
           phone: "82777777777",
           source: "landing_page",
-          status: "new",
+          status: "NEW",
         },
         {
           name: "Empresa Inovação",
           email: "contato@inovacao.com",
           source: "newsletter",
-          status: "contacted",
+          status: "CONTACTED",
         }
       ]
     });

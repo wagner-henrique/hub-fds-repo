@@ -1,39 +1,44 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { Payment, MercadoPagoConfig } from 'mercadopago';
-
-const client = new MercadoPagoConfig({
-  accessToken: process.env.MP_ACCESS_TOKEN || 'TEST-TOKEN'
-});
+import { NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { getPaymentById } from "@/lib/mercadopago"
+import { BookingStatus } from "@prisma/client"
 
 export async function POST(request: Request) {
   try {
-    const url = new URL(request.url);
-    const topic = url.searchParams.get("topic") || url.searchParams.get("type");
-    const id = url.searchParams.get("data.id") || url.searchParams.get("id");
+    const url = new URL(request.url)
+    const payload = await request.json().catch(() => ({}))
 
-    if (topic === "payment" && id) {
-      const paymentClient = new Payment(client);
-      const paymentData = await paymentClient.get({ id });
+    const type = (url.searchParams.get("type") || payload?.type || payload?.action || "").toString()
+    const dataId =
+      url.searchParams.get("data.id") ||
+      payload?.data?.id ||
+      payload?.resource?.split("/").pop()
 
-      if (paymentData.status === "approved" && paymentData.external_reference) {
-        await prisma.booking.update({
-          where: { id: paymentData.external_reference },
-          data: { status: "confirmed" },
-        });
-      } else if (
-        (paymentData.status === "rejected" || paymentData.status === "cancelled") && 
-        paymentData.external_reference
-      ) {
-        await prisma.booking.update({
-          where: { id: paymentData.external_reference },
-          data: { status: "cancelled" },
-        });
-      }
+    if (!dataId || !type.toLowerCase().includes("payment")) {
+      return NextResponse.json({ received: true })
     }
 
-    return NextResponse.json({ success: true }, { status: 200 });
-  } catch (error) {
-    return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
+    const payment = await getPaymentById(dataId)
+    const bookingId = payment.external_reference
+
+    if (!bookingId) {
+      return NextResponse.json({ received: true })
+    }
+
+    let nextBookingStatus: BookingStatus = BookingStatus.PENDING
+    if (payment.status === "approved") {
+      nextBookingStatus = BookingStatus.CONFIRMED
+    } else if (payment.status === "rejected" || payment.status === "cancelled") {
+      nextBookingStatus = BookingStatus.CANCELLED
+    }
+
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: nextBookingStatus },
+    })
+
+    return NextResponse.json({ received: true })
+  } catch {
+    return NextResponse.json({ received: true })
   }
 }
