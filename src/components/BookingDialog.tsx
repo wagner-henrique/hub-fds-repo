@@ -1,5 +1,4 @@
 "use client";
-
 import React from 'react';
 import {
   Dialog,
@@ -9,6 +8,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { motion, AnimatePresence } from 'framer-motion';
 import BookingForm from './BookingForm';
 
 interface BookingDialogProps {
@@ -23,15 +23,30 @@ const BookingDialog = ({ children }: BookingDialogProps) => {
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] rounded-[2.5rem] p-8 overflow-y-auto max-h-[90vh]">
-        <DialogHeader className="mb-4">
-          <DialogTitle className="text-3xl font-bold text-primary">Agende sua Visita</DialogTitle>
-          <DialogDescription className="text-base">
-            Escolha o melhor momento para conhecer o HUB FDS.
-          </DialogDescription>
-        </DialogHeader>
-        <BookingForm onSuccess={() => setOpen(false)} />
-      </DialogContent>
+
+      <AnimatePresence>
+        {open && (
+          <DialogContent className="sm:max-w-[600px] rounded-[2.5rem] p-8 overflow-y-auto max-h-[90vh]">
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0,  scale: 1    }}
+              exit={{    opacity: 0, y: 8,   scale: 0.98 }}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <DialogHeader className="mb-4">
+                <DialogTitle className="text-3xl font-bold text-primary">
+                  Agende sua Visita
+                </DialogTitle>
+                <DialogDescription className="text-base">
+                  Escolha o melhor momento para conhecer o HUB FDS.
+                </DialogDescription>
+              </DialogHeader>
+
+              <BookingForm onSuccess={() => setOpen(false)} />
+            </motion.div>
+          </DialogContent>
+        )}
+      </AnimatePresence>
     </Dialog>
   );
 };
