@@ -9,7 +9,7 @@ export const bookingSchema = z.object({
   name: z.string().min(3).max(100),
   email: z.string().email(),
   phone: z.string().min(10).max(20).optional().nullable(),
-  room: z.enum(["reuniao", "treinamento", "coworking", "arapiraca", "auditorio"]).default("reuniao"),
+  room: z.enum(["reuniao", "treinamento", "coworking", "arapiraca", "sala_arapiraca", "auditorio"]).default("reuniao"),
   date: z.string().refine((val) => !isNaN(Date.parse(val)), {
     message: "Formato de data inválido",
   }),
