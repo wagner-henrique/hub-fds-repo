@@ -6,6 +6,7 @@ import { BookingStatus, Prisma } from "@prisma/client"
 import { z } from "zod"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { parseBrazilOrIsoDateToUtc } from "@/lib/date-brazil"
 
 const cardPaymentSchema = z.object({
   method: z.literal("card"),
@@ -46,11 +47,10 @@ export async function GET(request: Request) {
     const availabilityDate = searchParams.get("date")
     const availabilityRoom = searchParams.get("room")
     if (availabilityDate && availabilityRoom) {
-      const bookingDate = new Date(availabilityDate)
-      if (isInvalidDate(bookingDate)) {
+      const bookingDate = parseBrazilOrIsoDateToUtc(availabilityDate)
+      if (!bookingDate || isInvalidDate(bookingDate)) {
         return NextResponse.json({ error: "Data inválida" }, { status: 400 })
       }
-      bookingDate.setUTCHours(0, 0, 0, 0)
 
       const reservedBookings = await prisma.booking.findMany({
         where: {
@@ -86,8 +86,10 @@ export async function GET(request: Request) {
     const where = {
       ...(listDate
         ? (() => {
-            const bookingDate = new Date(listDate)
-            bookingDate.setUTCHours(0, 0, 0, 0)
+            const bookingDate = parseBrazilOrIsoDateToUtc(listDate)
+            if (!bookingDate) {
+              throw new Error("INVALID_LIST_DATE")
+            }
             return { date: bookingDate }
           })()
         : {}),
@@ -135,8 +137,10 @@ export async function POST(request: Request) {
       }
     }
 
-    const bookingDate = new Date(validatedData.date)
-    bookingDate.setUTCHours(0, 0, 0, 0)
+    const bookingDate = parseBrazilOrIsoDateToUtc(validatedData.date)
+    if (!bookingDate) {
+      return NextResponse.json({ error: "Data inválida" }, { status: 400 })
+    }
 
     const manualSourceLabel = paymentData.method === "manual"
       ? paymentData.source === "whatsapp"
@@ -262,6 +266,10 @@ export async function POST(request: Request) {
       { status: 201 },
     )
   } catch (error: unknown) {
+    if (error instanceof Error && error.message === "INVALID_LIST_DATE") {
+      return NextResponse.json({ error: "Data inválida" }, { status: 400 })
+    }
+
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Falha de validação", details: error.errors }, { status: 400 })
     }

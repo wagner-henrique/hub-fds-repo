@@ -4,6 +4,7 @@ import { z } from "zod"
 
 import { prisma } from "@/lib/prisma"
 import { isN8nAuthorized } from "@/lib/n8n-auth"
+import { parseBrazilOrIsoDateToUtc } from "@/lib/date-brazil"
 
 const roomMap: Record<string, "reuniao" | "treinamento" | "coworking"> = {
   reuniao: "reuniao",
@@ -86,26 +87,7 @@ function normalizeRoom(input: string): "reuniao" | "treinamento" | "coworking" |
 }
 
 function parseDateInput(value: string): Date | null {
-  const trimmed = value.trim()
-
-  // Suporta DD/MM/AAAA para compatibilidade com o fluxo atual no n8n.
-  const brFormat = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  if (brFormat) {
-    const [, day, month, year] = brFormat
-    const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)))
-    if (!Number.isNaN(date.getTime())) {
-      return date
-    }
-    return null
-  }
-
-  const isoDate = new Date(trimmed)
-  if (Number.isNaN(isoDate.getTime())) {
-    return null
-  }
-
-  isoDate.setUTCHours(0, 0, 0, 0)
-  return isoDate
+  return parseBrazilOrIsoDateToUtc(value)
 }
 
 function generateReservaId(): string {
