@@ -2,33 +2,14 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Users, Monitor, Coffee, Wifi } from 'lucide-react';
+import { Users, Wifi } from 'lucide-react';
+import type { LandingSpace } from '@/types/landing';
 
-const spaces = [
-  {
-    title: "Sala de Reunião Executiva",
-    description: "Ideal para fechamento de negócios e reuniões estratégicas.",
-    capacity: "8 pessoas",
-    image: "https://images.unsplash.com/photo-1431540015161-0bf868a2d407?auto=format&fit=crop&q=80&w=800",
-    features: ["TV 4K", "Ar Condicionado", "Quadro Branco"]
-  },
-  {
-    title: "Auditório para Eventos",
-    description: "Espaço amplo para cursos, palestras e workshops.",
-    capacity: "40 pessoas",
-    image: "https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&q=80&w=800",
-    features: ["Som Profissional", "Projetor", "Palco"]
-  },
-  {
-    title: "Coworking & Networking",
-    description: "Estações de trabalho individuais em ambiente compartilhado.",
-    capacity: "20 pessoas",
-    image: "https://images.unsplash.com/photo-1527192491265-7e15c55b1ed2?auto=format&fit=crop&q=80&w=800",
-    features: ["Internet Fibra", "Café Liberado", "Lockers"]
-  }
-];
+type SpacesProps = {
+  spaces: LandingSpace[];
+};
 
-const Spaces = () => {
+const Spaces = ({ spaces }: SpacesProps) => {
   return (
     <section id="espacos" className="py-24 bg-white">
       <div className="container mx-auto px-6">
