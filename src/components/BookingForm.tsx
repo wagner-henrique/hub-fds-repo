@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useCallback, useEffect, useState } from 'react'
-import { User, Mail, Phone, Send, CreditCard, Loader2, Briefcase, Presentation, Laptop, MessageCircle } from 'lucide-react'
+import { User, Mail, Phone, Send, CreditCard, Loader2, Briefcase, Presentation, Laptop, MessageCircle, Mic, Users } from 'lucide-react'
 import { Calendar } from "@/components/ui/calendar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,8 +20,10 @@ const timeSlots = [
 ]
 
 const rooms = [
-  { id: 'reuniao', label: 'Sala de Reunião', price: 50.00, icon: Briefcase },
-  { id: 'treinamento', label: 'Sala de Treinamento', price: 150.00, icon: Presentation },
+  { id: 'reuniao', label: 'Sala de Reunião (Hora)', price: 100.00, icon: Briefcase },
+  { id: 'arapiraca', label: 'Sala Arapiraca (Turno)', price: 500.00, icon: Users },
+  { id: 'treinamento', label: 'Centro Treinamento (Turno)', price: 600.00, icon: Presentation },
+  { id: 'auditorio', label: 'Auditório (Turno)', price: 730.00, icon: Mic },
   { id: 'coworking', label: 'Coworking', price: 0, icon: Laptop },
 ]
 
@@ -32,7 +34,7 @@ interface BookingFormProps {
 export default function BookingForm({ onSuccess }: BookingFormProps) {
   const [step, setStep] = useState<'schedule' | 'details'>('schedule')
   const [date, setDate] = useState<Date | undefined>(new Date())
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
+  const [selectedSlots, setSelectedSlots] = useState<string[]>([])
   const [selectedRoom, setSelectedRoom] = useState<string>('reuniao')
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix'>('card')
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" })
@@ -44,11 +46,10 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
   const [loading, setLoading] = useState(false)
 
   const currentRoomDetails = rooms.find(r => r.id === selectedRoom)
-  const amount = currentRoomDetails?.price ?? 0
 
   const handleRoomChange = (roomId: string) => {
     setSelectedRoom(roomId)
-    setSelectedSlot(null)
+    setSelectedSlots([])
     setStep('schedule')
     setPixData(null)
     setPixBookingId(null)
@@ -89,6 +90,32 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
     }
   }, [onSuccess])
 
+  const isWeekend = date ? (date.getDay() === 0 || date.getDay() === 6) : false
+  const hoursCount = selectedSlots.length
+
+  const getDynamicPrice = () => {
+    if (hoursCount === 0 || !selectedRoom) return 0
+    if (selectedRoom === 'auditorio') return isWeekend ? 810 : 730
+    if (selectedRoom === 'treinamento') return isWeekend ? 680 : 600
+    if (selectedRoom === 'arapiraca') return isWeekend ? 600 : 500
+    if (selectedRoom === 'reuniao') {
+      if (hoursCount <= 2) return hoursCount * 100
+      if (hoursCount <= 4) return 299
+      return 640
+    }
+    return 0
+  }
+
+  const amount = getDynamicPrice()
+
+  const toggleSlot = (slot: string) => {
+    setSelectedSlots(prev => 
+      prev.includes(slot) 
+        ? prev.filter(s => s !== slot) 
+        : [...prev, slot].sort()
+    )
+  }
+
   useEffect(() => {
     if (!pixBookingId) return
 
@@ -106,12 +133,14 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
   }, [pixBookingId, checkPixBookingStatus])
 
   useEffect(() => {
-    if (!date || selectedRoom === 'coworking') {
-      setBookedSlots([])
-      return
-    }
+    // Se algum dos horários selecionados acabar de ser marcado como ocupado, ele remove da seleção
+    setSelectedSlots(prev => prev.filter(slot => !bookedSlots.includes(slot)))
+  }, [bookedSlots])
 
+  useEffect(() => {
     const fetchAvailability = async () => {
+      if (!date) return
+
       setAvailabilityLoading(true)
       try {
         const formattedDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split('T')[0]
@@ -139,10 +168,10 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
   }, [date, selectedRoom])
 
   useEffect(() => {
-    if (selectedSlot && bookedSlots.includes(selectedSlot)) {
-      setSelectedSlot(null)
+    if (selectedSlots.length > 0 && bookedSlots.includes(selectedSlots[0])) {
+      setSelectedSlots([])
     }
-  }, [bookedSlots, selectedSlot])
+  }, [bookedSlots, selectedSlots])
 
   const handleCheckPixNow = async () => {
     if (!pixBookingId) return
@@ -170,14 +199,14 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
     setFormData({ ...formData, phone: val })
   }
 
-  const validateSchedule = () => {
-    if (!selectedSlot || !date) {
+const validateSchedule = () => {
+    if (selectedSlots.length === 0) {
       showError("Escolha uma data e um horário para continuar.")
       return false
     }
 
-    if (bookedSlots.includes(selectedSlot)) {
-      showError("Esse horário já foi reservado. Escolha outro disponível.")
+    if (selectedSlots.some(slot => bookedSlots.includes(slot))) {
+      showError("Um dos horários escolhidos já foi reservado. Escolha outro disponível.")
       return false
     }
 
@@ -185,7 +214,7 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
   }
 
   const validatePersonalData = () => {
-    if (!selectedSlot || !formData.name || !formData.email || !formData.phone || !date) {
+    if (selectedSlots.length === 0 || !formData.name || !formData.email || !formData.phone || !date) {
       showError("Por favor, preencha todos os campos e escolha um horário.")
       return false
     }
@@ -215,7 +244,7 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
       phone: phoneClean,
       room: selectedRoom,
       date: formattedDate,
-      time: selectedSlot,
+      time: selectedSlots,
     }
   }
 
@@ -280,7 +309,7 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
       } else {
         if (response.status === 409) {
           showError("Este horário acabou de ser reservado para esta sala. Escolha outro.")
-          setSelectedSlot(null)
+          setSelectedSlots([])
           setStep('schedule')
         } else {
           throw new Error(data.error || "Erro ao processar a reserva.")
@@ -334,7 +363,7 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
       } else {
         if (response.status === 409) {
           showError("Este horário acabou de ser reservado para esta sala. Escolha outro.")
-          setSelectedSlot(null)
+          setSelectedSlots([])
           setStep('schedule')
         } else {
           throw new Error(data.error || "Erro ao gerar cobrança Pix.")
@@ -352,7 +381,7 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
     <div className="space-y-8 py-4">
       <div className="space-y-2">
         <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Escolha o Espaço</label>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {rooms.map((room) => {
             const Icon = room.icon
             return (
@@ -389,13 +418,14 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
           <div className="grid grid-cols-2 gap-2">
             {timeSlots.map((slot) => {
               const isBooked = bookedSlots.includes(slot)
+              const isSelected = selectedSlots.includes(slot)
               return (
                 <button
                   key={slot}
-                  onClick={() => setSelectedSlot(slot)}
+                  onClick={() => toggleSlot(slot)}
                   disabled={selectedRoom === 'coworking' || isBooked}
                   className={`py-3 rounded-xl text-xs font-bold transition-all border-2 ${
-                    selectedSlot === slot
+                    isSelected
                       ? 'bg-primary border-primary text-white shadow-md'
                       : isBooked
                         ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
@@ -416,7 +446,7 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
       {selectedRoom !== 'coworking' && currentRoomDetails && step === 'details' && (
         <div className="bg-primary/5 p-4 rounded-2xl border border-primary/10">
           <p className="text-xs font-bold text-primary flex items-center gap-2">
-            <CreditCard size={14} /> Pagamento para confirmação: R$ {currentRoomDetails.price.toFixed(2).replace('.', ',')}
+            <CreditCard size={14} /> Pagamento para confirmação: R$ {amount.toFixed(2).replace('.', ',')}
           </p>
         </div>
       )}
@@ -424,7 +454,7 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
       {selectedRoom !== 'coworking' && step === 'details' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Data: <strong>{date?.toLocaleDateString('pt-BR')}</strong> às <strong>{selectedSlot}</strong></p>
+            <p className="text-sm text-muted-foreground">Data: <strong>{date?.toLocaleDateString('pt-BR')}</strong> às <strong>{selectedSlots.join(', ')}</strong></p>
             <Button variant="outline" onClick={() => setStep('schedule')}>Alterar data/horário</Button>
           </div>
 

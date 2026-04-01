@@ -2,29 +2,43 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Users, Monitor, Coffee, Wifi } from 'lucide-react';
+import { Users, Monitor, Coffee, Wifi, Mic, Tv } from 'lucide-react'; 
 
 const spaces = [
   {
-    title: "Sala de Reunião Executiva",
-    description: "Ideal para fechamento de negócios e reuniões estratégicas.",
-    capacity: "8 pessoas",
-    image: "https://images.unsplash.com/photo-1431540015161-0bf868a2d407?auto=format&fit=crop&q=80&w=800",
-    features: ["TV 4K", "Ar Condicionado", "Quadro Branco"]
-  },
-  {
-    title: "Auditório para Eventos",
-    description: "Espaço amplo para cursos, palestras e workshops.",
-    capacity: "40 pessoas",
+    title: "Auditório",
+    description: "Ideal para grandes eventos, treinamentos, palestras e workshops.",
+    capacity: "Até 130 pessoas",
     image: "https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&q=80&w=800",
-    features: ["Som Profissional", "Projetor", "Palco"]
+    features: ["Mesa de som", "Projetor", "Climatizado", "Microfones sem fio"]
   },
   {
-    title: "Coworking & Networking",
-    description: "Estações de trabalho individuais em ambiente compartilhado.",
-    capacity: "20 pessoas",
+    title: "Centro de Treinamento",
+    description: "Ambiente aconchegante com estilo rústico para cursos e reuniões.",
+    capacity: "Até 70 pessoas",
+    image: "https://images.unsplash.com/photo-1431540015161-0bf868a2d407?auto=format&fit=crop&q=80&w=800",
+    features: ["Projetor", "Caixa de som", "Climatizado", "Camarim"]
+  },
+  {
+    title: "Sala Arapiraca",
+    description: "Espaço moderno com identidade cultural. Ideal para encontros reservados.",
+    capacity: "Até 40 pessoas",
+    image: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=800",
+    features: ["TV 55\"", "Caixa de som", "Climatizado", "Microfones"]
+  },
+  {
+    title: "Sala de Reunião",
+    description: "Ambiente bem estruturado para encontros executivos, mentorias e entrevistas.",
+    capacity: "Até 7 pessoas",
+    image: "https://images.unsplash.com/photo-1582653291997-079a1c04e5d1?auto=format&fit=crop&q=80&w=800",
+    features: ["TV 55\"", "Lousa Branca", "Climatizado", "Água e Café"]
+  },
+  {
+    title: "Estação de Trabalho (Coworking)",
+    description: "Mesas individuais em ambiente compartilhado para produtividade.",
+    capacity: "Individual",
     image: "https://images.unsplash.com/photo-1527192491265-7e15c55b1ed2?auto=format&fit=crop&q=80&w=800",
-    features: ["Internet Fibra", "Café Liberado", "Lockers"]
+    features: ["Internet Fibra", "Ambiente Climatizado"]
   }
 ];
 

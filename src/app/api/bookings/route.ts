@@ -142,137 +142,117 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Data inválida" }, { status: 400 })
     }
 
+    const dayOfWeek = bookingDate.getUTCDay()
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+
+    const times = Array.isArray(validatedData.time) ? validatedData.time : [validatedData.time]
+    const hours = times.length
+    let totalPrice = 0
+
+    if (validatedData.room === "auditorio") {
+      totalPrice = isWeekend ? 810 : 730
+    } else if (validatedData.room === "treinamento") {
+      totalPrice = isWeekend ? 680 : 600
+    } else if (validatedData.room === "arapiraca") {
+      totalPrice = isWeekend ? 600 : 500
+    } else if (validatedData.room === "reuniao") {
+      if (hours <= 2) {
+        totalPrice = hours * 100
+      } else if (hours <= 4) {
+        totalPrice = 299 // Turno
+      } else {
+        totalPrice = 640 // Diária
+      }
+    }
+
     const manualSourceLabel = paymentData.method === "manual"
-      ? paymentData.source === "whatsapp"
-        ? "WhatsApp"
-        : paymentData.source === "presencial"
-          ? "Presencial"
-          : "Admin"
+      ? paymentData.source === "whatsapp" ? "WhatsApp" : paymentData.source === "presencial" ? "Presencial" : "Admin"
       : null
 
-    let booking
+    let createdBookings = []
+    const groupId = `GRP-${Date.now()}`
+
     try {
-      booking = await prisma.booking.create({
-        data: {
-          name: validatedData.name,
-          email: validatedData.email,
-          phone: validatedData.phone,
-          room: validatedData.room,
-          date: bookingDate,
-          time: validatedData.time,
-          notes: paymentData.method === "manual"
-            ? `[Manual: ${manualSourceLabel}]${validatedData.notes ? ` ${validatedData.notes}` : ""}`
-            : validatedData.notes,
-          status: paymentData.method === "manual"
-            ? paymentData.status ?? BookingStatus.CONFIRMED
-            : BookingStatus.PENDING
-        },
-      })
+      createdBookings = await prisma.$transaction(
+        times.map(timeStr => prisma.booking.create({
+          data: {
+            name: validatedData.name,
+            email: validatedData.email,
+            phone: validatedData.phone,
+            room: validatedData.room,
+            date: bookingDate,
+            time: timeStr,
+            notes: paymentData.method === "manual"
+              ? `[Manual: ${manualSourceLabel}] [Grupo:${groupId}] ${validatedData.notes || ""}`
+              : `[Grupo:${groupId}] ${validatedData.notes || ""}`,
+            status: paymentData.method === "manual" ? (paymentData.status ?? BookingStatus.CONFIRMED) : BookingStatus.PENDING
+          }
+        }))
+      )
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-        return NextResponse.json({ error: "Horário indisponível para esta sala" }, { status: 409 })
+        return NextResponse.json({ error: "Um ou mais horários estão indisponíveis" }, { status: 409 })
       }
       throw error
     }
 
-    let unitPrice = 50.00
-
-    if (validatedData.room === "treinamento") {
-      unitPrice = 150.00
-    }
+    const primaryBooking = createdBookings[0]
+    const bookingIds = createdBookings.map(b => b.id)
 
     if (paymentData.method === "manual") {
-      return NextResponse.json(
-        {
-          booking,
-          payment: {
-            method: "manual",
-            status: "manual_confirmed",
-          },
-        },
-        { status: 201 },
-      )
+      return NextResponse.json({ booking: primaryBooking, payment: { method: "manual", status: "manual_confirmed" } }, { status: 201 })
     }
 
-    const paymentPayload =
-      paymentData.method === "card"
-        ? {
-            token: paymentData.token,
-            issuer_id: paymentData.issuer_id ?? undefined,
-            payment_method_id: paymentData.payment_method_id,
-            transaction_amount: unitPrice,
-            installments: paymentData.installments,
-            payer: {
-              email: paymentData.payer.email,
-              identification: paymentData.payer.identification ?? undefined,
-            },
-          }
-        : {
-            payment_method_id: "pix",
-            transaction_amount: unitPrice,
-            payer: {
-              email: validatedData.email,
-            },
-          }
+    const paymentPayload = paymentData.method === "card"
+      ? {
+          token: paymentData.token,
+          issuer_id: paymentData.issuer_id ?? undefined,
+          payment_method_id: paymentData.payment_method_id,
+          transaction_amount: totalPrice,
+          installments: paymentData.installments,
+          payer: { email: paymentData.payer.email, identification: paymentData.payer.identification ?? undefined },
+        }
+      : {
+          payment_method_id: "pix",
+          transaction_amount: totalPrice,
+          payer: { email: validatedData.email },
+        }
 
     let paymentResponse
     try {
-      paymentResponse = await processDirectPayment(paymentPayload, booking.id)
+      paymentResponse = await processDirectPayment(paymentPayload, primaryBooking.id)
     } catch {
-      await prisma.booking.update({
-        where: { id: booking.id },
-        data: {
-          status: BookingStatus.CANCELLED,
-          notes: `${booking.notes ? `${booking.notes} ` : ""}[Pagamento não processado automaticamente]`,
-        },
+      await prisma.booking.updateMany({
+        where: { id: { in: bookingIds } },
+        data: { status: BookingStatus.CANCELLED, notes: `[Pagamento não processado]` },
       })
-
-      return NextResponse.json(
-        { error: "Falha ao processar o pagamento. Tente novamente." },
-        { status: 502 },
-      )
+      return NextResponse.json({ error: "Falha ao processar o pagamento." }, { status: 502 })
     }
-
-    const paymentStatus = paymentResponse.status
 
     let nextBookingStatus: BookingStatus = BookingStatus.PENDING
-    if (paymentStatus === "approved") {
-      nextBookingStatus = BookingStatus.CONFIRMED
-    } else if (paymentStatus === "rejected" || paymentStatus === "cancelled") {
-      nextBookingStatus = BookingStatus.CANCELLED
-    }
+    if (paymentResponse.status === "approved") nextBookingStatus = BookingStatus.CONFIRMED
+    else if (paymentResponse.status === "rejected" || paymentResponse.status === "cancelled") nextBookingStatus = BookingStatus.CANCELLED
 
-    const updatedBooking = await prisma.booking.update({
-      where: { id: booking.id },
+    await prisma.booking.updateMany({
+      where: { id: { in: bookingIds } },
       data: { status: nextBookingStatus },
     })
 
-    return NextResponse.json(
-      {
-        booking: updatedBooking,
-        payment: {
-          id: paymentResponse.id,
-          status: paymentResponse.status,
-          statusDetail: paymentResponse.status_detail,
-          method: paymentData.method,
-          pix: paymentData.method === "pix"
-            ? {
-                qrCode: paymentResponse.point_of_interaction?.transaction_data?.qr_code,
-                qrCodeBase64: paymentResponse.point_of_interaction?.transaction_data?.qr_code_base64,
-              }
-            : undefined,
-        },
+    return NextResponse.json({
+      booking: primaryBooking, 
+      payment: {
+        id: paymentResponse.id,
+        status: paymentResponse.status,
+        statusDetail: paymentResponse.status_detail,
+        method: paymentData.method,
+        pix: paymentData.method === "pix" ? {
+          qrCode: paymentResponse.point_of_interaction?.transaction_data?.qr_code,
+          qrCodeBase64: paymentResponse.point_of_interaction?.transaction_data?.qr_code_base64,
+        } : undefined,
       },
-      { status: 201 },
-    )
+    }, { status: 201 })
   } catch (error: unknown) {
-    if (error instanceof Error && error.message === "INVALID_LIST_DATE") {
-      return NextResponse.json({ error: "Data inválida" }, { status: 400 })
-    }
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Falha de validação", details: error.errors }, { status: 400 })
-    }
+    if (error instanceof z.ZodError) return NextResponse.json({ error: "Falha de validação", details: error.errors }, { status: 400 })
     return NextResponse.json({ error: "Falha ao processar a reserva" }, { status: 500 })
   }
 }
