@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { User, Mail, Phone, Send, CreditCard, Loader2, Briefcase, Presentation, Laptop, MessageCircle } from 'lucide-react'
 import { Calendar } from "@/components/ui/calendar"
 import { Button } from "@/components/ui/button"
@@ -55,7 +55,7 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
     setPixStatusMessage(null)
   }
 
-  const checkPixBookingStatus = async (bookingId: string) => {
+  const checkPixBookingStatus = useCallback(async (bookingId: string) => {
     try {
       const response = await fetch(`/api/bookings/${bookingId}`, {
         method: 'GET',
@@ -87,7 +87,7 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
     } catch {
       setPixStatusMessage('Aguardando confirmação do pagamento Pix em tempo real...')
     }
-  }
+  }, [onSuccess])
 
   useEffect(() => {
     if (!pixBookingId) return
@@ -103,7 +103,7 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
     return () => {
       window.clearInterval(intervalId)
     }
-  }, [pixBookingId, onSuccess])
+  }, [pixBookingId, checkPixBookingStatus])
 
   useEffect(() => {
     if (!date || selectedRoom === 'coworking') {
@@ -286,8 +286,9 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
           throw new Error(data.error || "Erro ao processar a reserva.")
         }
       }
-    } catch (error: any) {
-      showError(error.message || "Falha na comunicação com o servidor.")
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Falha na comunicação com o servidor."
+      showError(message)
     } finally {
       setLoading(false)
     }
@@ -339,8 +340,9 @@ export default function BookingForm({ onSuccess }: BookingFormProps) {
           throw new Error(data.error || "Erro ao gerar cobrança Pix.")
         }
       }
-    } catch (error: any) {
-      showError(error.message || "Falha na comunicação com o servidor.")
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Falha na comunicação com o servidor."
+      showError(message)
     } finally {
       setLoading(false)
     }

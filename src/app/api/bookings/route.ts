@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { bookingSchema, paginationSchema } from "@/lib/validations"
 import { processDirectPayment } from "@/lib/mercadopago"
-import { BookingStatus } from "@prisma/client"
+import { BookingStatus, Prisma } from "@prisma/client"
 import { z } from "zod"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
@@ -37,6 +37,8 @@ const manualPaymentSchema = z.object({
 
 const checkoutPaymentSchema = z.discriminatedUnion("method", [cardPaymentSchema, pixPaymentSchema, manualPaymentSchema])
 
+const isInvalidDate = (value: Date) => Number.isNaN(value.getTime())
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
@@ -45,6 +47,9 @@ export async function GET(request: Request) {
     const availabilityRoom = searchParams.get("room")
     if (availabilityDate && availabilityRoom) {
       const bookingDate = new Date(availabilityDate)
+      if (isInvalidDate(bookingDate)) {
+        return NextResponse.json({ error: "Data inválida" }, { status: 400 })
+      }
       bookingDate.setUTCHours(0, 0, 0, 0)
 
       const reservedBookings = await prisma.booking.findMany({
@@ -94,7 +99,7 @@ export async function GET(request: Request) {
         where,
         skip,
         take: limit,
-        orderBy: { date: "asc" },
+        orderBy: [{ date: "asc" }, { time: "asc" }],
       }),
       prisma.booking.count({ where }),
     ])
@@ -133,21 +138,6 @@ export async function POST(request: Request) {
     const bookingDate = new Date(validatedData.date)
     bookingDate.setUTCHours(0, 0, 0, 0)
 
-    const existingBooking = await prisma.booking.findFirst({
-      where: {
-        room: validatedData.room,
-        date: bookingDate,
-        time: validatedData.time,
-        status: {
-          in: [BookingStatus.CONFIRMED, BookingStatus.PENDING]
-        }
-      }
-    })
-
-    if (existingBooking) {
-      return NextResponse.json({ error: "Horário indisponível para esta sala" }, { status: 409 })
-    }
-
     const manualSourceLabel = paymentData.method === "manual"
       ? paymentData.source === "whatsapp"
         ? "WhatsApp"
@@ -156,22 +146,30 @@ export async function POST(request: Request) {
           : "Admin"
       : null
 
-    const booking = await prisma.booking.create({
-      data: {
-        name: validatedData.name,
-        email: validatedData.email,
-        phone: validatedData.phone,
-        room: validatedData.room,
-        date: bookingDate,
-        time: validatedData.time,
-        notes: paymentData.method === "manual"
-          ? `[Manual: ${manualSourceLabel}]${validatedData.notes ? ` ${validatedData.notes}` : ""}`
-          : validatedData.notes,
-        status: paymentData.method === "manual"
-          ? paymentData.status ?? BookingStatus.CONFIRMED
-          : BookingStatus.PENDING
-      },
-    })
+    let booking
+    try {
+      booking = await prisma.booking.create({
+        data: {
+          name: validatedData.name,
+          email: validatedData.email,
+          phone: validatedData.phone,
+          room: validatedData.room,
+          date: bookingDate,
+          time: validatedData.time,
+          notes: paymentData.method === "manual"
+            ? `[Manual: ${manualSourceLabel}]${validatedData.notes ? ` ${validatedData.notes}` : ""}`
+            : validatedData.notes,
+          status: paymentData.method === "manual"
+            ? paymentData.status ?? BookingStatus.CONFIRMED
+            : BookingStatus.PENDING
+        },
+      })
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        return NextResponse.json({ error: "Horário indisponível para esta sala" }, { status: 409 })
+      }
+      throw error
+    }
 
     let unitPrice = 50.00
 
@@ -213,7 +211,23 @@ export async function POST(request: Request) {
             },
           }
 
-    const paymentResponse = await processDirectPayment(paymentPayload, booking.id)
+    let paymentResponse
+    try {
+      paymentResponse = await processDirectPayment(paymentPayload, booking.id)
+    } catch {
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+          status: BookingStatus.CANCELLED,
+          notes: `${booking.notes ? `${booking.notes} ` : ""}[Pagamento não processado automaticamente]`,
+        },
+      })
+
+      return NextResponse.json(
+        { error: "Falha ao processar o pagamento. Tente novamente." },
+        { status: 502 },
+      )
+    }
 
     const paymentStatus = paymentResponse.status
 
@@ -247,8 +261,8 @@ export async function POST(request: Request) {
       },
       { status: 201 },
     )
-  } catch (error: any) {
-    if (error?.name === 'ZodError') {
+  } catch (error: unknown) {
+    if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Falha de validação", details: error.errors }, { status: 400 })
     }
     return NextResponse.json({ error: "Falha ao processar a reserva" }, { status: 500 })

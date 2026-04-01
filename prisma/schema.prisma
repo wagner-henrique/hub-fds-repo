@@ -38,6 +38,10 @@ model Booking {
   notes     String?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
+
+  @@unique([room, date, time])
+  @@index([date, room, status])
+  @@index([createdAt])
 }
 
 model Lead {
