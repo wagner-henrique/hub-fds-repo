@@ -74,19 +74,36 @@ const LandingContentSections = () => {
         <section className="py-6 bg-secondary/30">
           <div className="container mx-auto px-6">
             <p className="text-sm text-muted-foreground">
-              Não foi possível atualizar os dados em tempo real agora. Exibindo versão de contingência.
+              Não foi possível carregar os dados da API no momento.
             </p>
           </div>
         </section>
       )}
 
-      <ScrollReveal>
-        <Spaces spaces={data.spaces} />
-      </ScrollReveal>
+      {state !== "loading" && data.spaces.length === 0 && data.testimonials.length === 0 && (
+        <section className="py-16 bg-white">
+          <div className="container mx-auto px-6">
+            <div className="rounded-3xl border border-primary/10 bg-secondary/20 p-8 text-center">
+              <h3 className="text-2xl font-bold text-primary">Conteúdo indisponível</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Ainda não há dados publicados para os espaços e depoimentos da landing.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
-      <ScrollReveal delay={0.1}>
-        <Testimonials testimonials={data.testimonials} />
-      </ScrollReveal>
+      {data.spaces.length > 0 && (
+        <ScrollReveal>
+          <Spaces spaces={data.spaces} />
+        </ScrollReveal>
+      )}
+
+      {data.testimonials.length > 0 && (
+        <ScrollReveal delay={0.1}>
+          <Testimonials testimonials={data.testimonials} />
+        </ScrollReveal>
+      )}
     </>
   );
 };
