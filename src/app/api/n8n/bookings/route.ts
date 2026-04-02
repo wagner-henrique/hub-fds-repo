@@ -4,78 +4,79 @@ import { z } from "zod"
 
 import { prisma } from "@/lib/prisma"
 import { isN8nAuthorized } from "@/lib/n8n-auth"
+import { parseBrazilOrIsoDateToUtc } from "@/lib/date-brazil"
 
-const roomMap: Record<string, "reuniao" | "treinamento" | "coworking"> = {
-  reuniao: "reuniao",
-  "sala de reunião": "reuniao",
-  sala_reuniao: "reuniao",
-  treinamento: "treinamento",
+// Agora mapeia corretamente as 5 salas!
+const roomMap: Record<string, string> = {
+  "reuniao": "reuniao",
+  "sala de reuniao": "reuniao",
+  "sala_reuniao": "reuniao",
+  "treinamento": "treinamento",
   "centro de treinamento": "treinamento",
-  centro_treinamento: "treinamento",
-  coworking: "coworking",
-  "estação de trabalho": "coworking",
-  estacao_trabalho: "coworking",
+  "centro_treinamento": "treinamento",
+  "coworking": "coworking",
+  "estacao de trabalho": "coworking",
+  "estacao_trabalho": "coworking",
+  "sala arapiraca": "arapiraca",
+  "sala_arapiraca": "arapiraca",
+  "arapiraca": "arapiraca",
+  "auditorio": "auditorio",
 }
 
+// Esquemas Zod mais resilientes com .trim() e .nullable()
 const createBookingSchema = z.object({
-  idReserva: z.string().optional(),
-  bookingId: z.string().optional(),
-  nomeCliente: z.string().min(2),
-  email: z.string().email().optional(),
-  telefone: z.string().min(8),
-  tipoEspaco: z.string().min(2),
-  dataAgendamento: z.string().min(8),
-  horarioInicio: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
-  horarioFim: z
-    .string()
-    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/)
-    .optional(),
-  numeroPessoas: z.coerce.number().int().min(1).optional(),
-  observacoes: z.string().max(1000).optional(),
-  status: z.nativeEnum(BookingStatus).optional(),
+  idReserva: z.string().optional().nullable(),
+  bookingId: z.string().optional().nullable(),
+  nomeCliente: z.string().trim().min(2),
+  email: z.string().email().optional().nullable(),
+  telefone: z.string().trim().min(8),
+  tipoEspaco: z.string().trim().min(2),
+  dataAgendamento: z.string().trim().min(8),
+  horarioInicio: z.string().trim().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Use HH:MM"),
+  horarioFim: z.string().trim().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional().nullable().or(z.literal("")),
+  numeroPessoas: z.coerce.number().int().min(1).optional().nullable(),
+  observacoes: z.string().trim().max(1000).optional().nullable(),
+  status: z.nativeEnum(BookingStatus).optional().nullable(),
 })
 
 const updateBookingSchema = z.object({
-  bookingId: z.string().optional(),
-  idReserva: z.string().optional(),
-  nomeCliente: z.string().min(2).optional(),
-  email: z.string().email().optional(),
-  telefone: z.string().min(8).optional(),
-  tipoEspaco: z.string().min(2).optional(),
-  dataAgendamento: z.string().min(8).optional(),
-  horarioInicio: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional(),
-  horarioFim: z
-    .string()
-    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/)
-    .optional(),
-  numeroPessoas: z.coerce.number().int().min(1).optional(),
-  observacoes: z.string().max(1000).optional(),
-  status: z.nativeEnum(BookingStatus).optional(),
+  bookingId: z.string().optional().nullable(),
+  idReserva: z.string().optional().nullable(),
+  nomeCliente: z.string().trim().min(2).optional().nullable(),
+  email: z.string().email().optional().nullable(),
+  telefone: z.string().trim().min(8).optional().nullable(),
+  tipoEspaco: z.string().trim().min(2).optional().nullable(),
+  dataAgendamento: z.string().trim().min(8).optional().nullable(),
+  horarioInicio: z.string().trim().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional().nullable(),
+  horarioFim: z.string().trim().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional().nullable().or(z.literal("")),
+  numeroPessoas: z.coerce.number().int().min(1).optional().nullable(),
+  observacoes: z.string().trim().max(1000).optional().nullable(),
+  status: z.nativeEnum(BookingStatus).optional().nullable(),
 }).refine((data) => Boolean(data.bookingId || data.idReserva), {
   message: "Informe bookingId ou idReserva",
   path: ["bookingId"],
 })
 
 const listBookingsSchema = z.object({
-  bookingId: z.string().optional(),
-  idReserva: z.string().optional(),
-  telefone: z.string().optional(),
-  room: z.string().optional(),
-  date: z.string().optional(),
-  status: z.nativeEnum(BookingStatus).optional(),
+  bookingId: z.string().optional().nullable(),
+  idReserva: z.string().optional().nullable(),
+  telefone: z.string().trim().optional().nullable(),
+  room: z.string().trim().optional().nullable(),
+  date: z.string().trim().optional().nullable(),
+  status: z.nativeEnum(BookingStatus).optional().nullable(),
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),
 })
 
 const cancelBookingSchema = z.object({
-  bookingId: z.string().optional(),
-  idReserva: z.string().optional(),
+  bookingId: z.string().optional().nullable(),
+  idReserva: z.string().optional().nullable(),
 }).refine((data) => Boolean(data.bookingId || data.idReserva), {
   message: "Informe bookingId ou idReserva",
   path: ["bookingId"],
 })
 
-function normalizeRoom(input: string): "reuniao" | "treinamento" | "coworking" | null {
+function normalizeRoom(input: string): string | null {
   const normalized = input
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -86,26 +87,7 @@ function normalizeRoom(input: string): "reuniao" | "treinamento" | "coworking" |
 }
 
 function parseDateInput(value: string): Date | null {
-  const trimmed = value.trim()
-
-  // Suporta DD/MM/AAAA para compatibilidade com o fluxo atual no n8n.
-  const brFormat = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  if (brFormat) {
-    const [, day, month, year] = brFormat
-    const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)))
-    if (!Number.isNaN(date.getTime())) {
-      return date
-    }
-    return null
-  }
-
-  const isoDate = new Date(trimmed)
-  if (Number.isNaN(isoDate.getTime())) {
-    return null
-  }
-
-  isoDate.setUTCHours(0, 0, 0, 0)
-  return isoDate
+  return parseBrazilOrIsoDateToUtc(value)
 }
 
 function generateReservaId(): string {
@@ -119,8 +101,8 @@ function normalizePhoneForEmail(phone: string): string {
 }
 
 function appendN8nMeta(
-  notes: string | undefined,
-  meta: { idReserva: string; horarioFim?: string; numeroPessoas?: number },
+  notes: string | undefined | null,
+  meta: { idReserva: string; horarioFim?: string | null; numeroPessoas?: number | null },
 ): string {
   const parts: string[] = []
 
@@ -141,7 +123,7 @@ function appendN8nMeta(
   return parts.join(" ")
 }
 
-async function findBookingByIdentifiers(payload: { bookingId?: string; idReserva?: string }) {
+async function findBookingByIdentifiers(payload: { bookingId?: string | null; idReserva?: string | null }) {
   if (payload.bookingId) {
     return prisma.booking.findUnique({ where: { id: payload.bookingId } })
   }
@@ -165,9 +147,7 @@ function unauthorizedResponse() {
 }
 
 export async function GET(request: Request) {
-  if (!isN8nAuthorized(request)) {
-    return unauthorizedResponse()
-  }
+  if (!isN8nAuthorized(request)) return unauthorizedResponse()
 
   try {
     const { searchParams } = new URL(request.url)
@@ -180,22 +160,15 @@ export async function GET(request: Request) {
     })
 
     if (params.bookingId || params.idReserva) {
-      if (!identified) {
-        return NextResponse.json({ error: "Reserva não encontrada" }, { status: 404 })
-      }
-
+      if (!identified) return NextResponse.json({ error: "Reserva não encontrada" }, { status: 404 })
       return NextResponse.json({ data: identified })
     }
 
     const room = params.room ? normalizeRoom(params.room) : null
-    if (params.room && !room) {
-      return NextResponse.json({ error: "Tipo de espaço inválido" }, { status: 400 })
-    }
+    if (params.room && !room) return NextResponse.json({ error: "Tipo de espaço inválido" }, { status: 400 })
 
     const date = params.date ? parseDateInput(params.date) : null
-    if (params.date && !date) {
-      return NextResponse.json({ error: "Data inválida" }, { status: 400 })
-    }
+    if (params.date && !date) return NextResponse.json({ error: "Data inválida" }, { status: 400 })
 
     const where: Prisma.BookingWhereInput = {
       ...(params.telefone ? { phone: params.telefone } : {}),
@@ -226,32 +199,23 @@ export async function GET(request: Request) {
       },
     })
   } catch (error: unknown) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Falha de validação", details: error.errors }, { status: 400 })
-    }
-
+    if (error instanceof z.ZodError) return NextResponse.json({ error: "Falha de validação", details: error.errors }, { status: 400 })
     return NextResponse.json({ error: "Erro ao buscar reservas" }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
-  if (!isN8nAuthorized(request)) {
-    return unauthorizedResponse()
-  }
+  if (!isN8nAuthorized(request)) return unauthorizedResponse()
 
   try {
     const body = await request.json()
     const payload = createBookingSchema.parse(body)
 
     const room = normalizeRoom(payload.tipoEspaco)
-    if (!room) {
-      return NextResponse.json({ error: "Tipo de espaço inválido" }, { status: 400 })
-    }
+    if (!room) return NextResponse.json({ error: "Tipo de espaço inválido" }, { status: 400 })
 
     const bookingDate = parseDateInput(payload.dataAgendamento)
-    if (!bookingDate) {
-      return NextResponse.json({ error: "Data inválida" }, { status: 400 })
-    }
+    if (!bookingDate) return NextResponse.json({ error: "Data inválida" }, { status: 400 })
 
     const idReserva = payload.idReserva || generateReservaId()
 
@@ -273,10 +237,7 @@ export async function POST(request: Request) {
         },
       })
 
-      return NextResponse.json({
-        data: booking,
-        idReserva,
-      }, { status: 201 })
+      return NextResponse.json({ data: booking, idReserva }, { status: 201 })
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         return NextResponse.json({ error: "Horário indisponível para este espaço" }, { status: 409 })
@@ -284,18 +245,13 @@ export async function POST(request: Request) {
       throw error
     }
   } catch (error: unknown) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Falha de validação", details: error.errors }, { status: 400 })
-    }
-
+    if (error instanceof z.ZodError) return NextResponse.json({ error: "Falha de validação", details: error.errors }, { status: 400 })
     return NextResponse.json({ error: "Erro ao criar reserva" }, { status: 500 })
   }
 }
 
 export async function PATCH(request: Request) {
-  if (!isN8nAuthorized(request)) {
-    return unauthorizedResponse()
-  }
+  if (!isN8nAuthorized(request)) return unauthorizedResponse()
 
   try {
     const body = await request.json()
@@ -306,19 +262,13 @@ export async function PATCH(request: Request) {
       idReserva: payload.idReserva,
     })
 
-    if (!booking) {
-      return NextResponse.json({ error: "Reserva não encontrada" }, { status: 404 })
-    }
+    if (!booking) return NextResponse.json({ error: "Reserva não encontrada" }, { status: 404 })
 
     const room = payload.tipoEspaco ? normalizeRoom(payload.tipoEspaco) : null
-    if (payload.tipoEspaco && !room) {
-      return NextResponse.json({ error: "Tipo de espaço inválido" }, { status: 400 })
-    }
+    if (payload.tipoEspaco && !room) return NextResponse.json({ error: "Tipo de espaço inválido" }, { status: 400 })
 
     const bookingDate = payload.dataAgendamento ? parseDateInput(payload.dataAgendamento) : null
-    if (payload.dataAgendamento && !bookingDate) {
-      return NextResponse.json({ error: "Data inválida" }, { status: 400 })
-    }
+    if (payload.dataAgendamento && !bookingDate) return NextResponse.json({ error: "Data inválida" }, { status: 400 })
 
     const currentReservaIdMatch = booking.notes?.match(/\[ID_Reserva:([^\]]+)\]/)
     const currentReservaId = payload.idReserva || currentReservaIdMatch?.[1] || generateReservaId()
@@ -345,23 +295,15 @@ export async function PATCH(request: Request) {
       },
     })
 
-    return NextResponse.json({
-      data: updated,
-      idReserva: currentReservaId,
-    })
+    return NextResponse.json({ data: updated, idReserva: currentReservaId })
   } catch (error: unknown) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Falha de validação", details: error.errors }, { status: 400 })
-    }
-
+    if (error instanceof z.ZodError) return NextResponse.json({ error: "Falha de validação", details: error.errors }, { status: 400 })
     return NextResponse.json({ error: "Erro ao modificar reserva" }, { status: 500 })
   }
 }
 
 export async function DELETE(request: Request) {
-  if (!isN8nAuthorized(request)) {
-    return unauthorizedResponse()
-  }
+  if (!isN8nAuthorized(request)) return unauthorizedResponse()
 
   try {
     const body = await request.json().catch(() => ({}))
@@ -372,9 +314,7 @@ export async function DELETE(request: Request) {
       idReserva: payload.idReserva,
     })
 
-    if (!booking) {
-      return NextResponse.json({ error: "Reserva não encontrada" }, { status: 404 })
-    }
+    if (!booking) return NextResponse.json({ error: "Reserva não encontrada" }, { status: 404 })
 
     const cancelled = await prisma.booking.update({
       where: { id: booking.id },
@@ -383,10 +323,7 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ data: cancelled })
   } catch (error: unknown) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Falha de validação", details: error.errors }, { status: 400 })
-    }
-
+    if (error instanceof z.ZodError) return NextResponse.json({ error: "Falha de validação", details: error.errors }, { status: 400 })
     return NextResponse.json({ error: "Erro ao cancelar reserva" }, { status: 500 })
   }
 }

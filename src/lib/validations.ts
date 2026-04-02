@@ -9,13 +9,14 @@ export const bookingSchema = z.object({
   name: z.string().min(3).max(100),
   email: z.string().email(),
   phone: z.string().min(10).max(20).optional().nullable(),
-  room: z.enum(["reuniao", "treinamento", "coworking"]).default("reuniao"),
+  room: z.enum(["reuniao", "treinamento", "coworking", "arapiraca", "sala_arapiraca", "auditorio"]).default("reuniao"),
   date: z.string().refine((val) => !isNaN(Date.parse(val)), {
     message: "Formato de data inválido",
   }),
-  time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, {
-    message: "Formato de hora inválido",
-  }),
+  time: z.union([
+    z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Formato de hora inválido" }),
+    z.array(z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/)).min(1)
+  ]),
   notes: z.string().max(500).optional().nullable(),
 })
 
