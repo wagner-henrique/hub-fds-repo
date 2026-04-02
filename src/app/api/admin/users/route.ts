@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import bcrypt from "bcryptjs"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { requireRole } from "@/lib/auth-guards"
 
 const createUserSchema = z.object({
   name: z.string().min(2).max(100),
@@ -14,8 +13,8 @@ const createUserSchema = z.object({
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.email || session.user.role !== "ADMIN") {
+    const session = await requireRole(["ADMIN"])
+    if (!session) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
     }
 
@@ -39,8 +38,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.email || session.user.role !== "ADMIN") {
+    const session = await requireRole(["ADMIN"])
+    if (!session) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
     }
 

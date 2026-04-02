@@ -2,8 +2,7 @@ import React from 'react'
 import Navbar from '@/components/Navbar'
 import Hero from '@/components/Hero'
 import VideoShowcase from '@/components/VideoShowcase'
-import Spaces from '@/components/Spaces'
-import Testimonials from '@/components/Testimonials'
+import LandingContentSections from '@/components/LandingContentSections'
 import BookingSystem from '@/components/BookingSystem'
 import Contact from '@/components/Contact'
 import { ScrollReveal } from '@/components/ScrollReveal'
@@ -19,14 +18,8 @@ export default function Home() {
         <Hero />
         
         <VideoShowcase />
-        
-        <ScrollReveal>
-          <Spaces />
-        </ScrollReveal>
-        
-        <ScrollReveal delay={0.1}>
-          <Testimonials />
-        </ScrollReveal>
+
+        <LandingContentSections />
 
         <ScrollReveal delay={0.2}>
           <BookingSystem />

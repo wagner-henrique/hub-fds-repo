@@ -3,29 +3,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Quote } from 'lucide-react';
+import type { LandingTestimonial } from '@/types/landing';
 
-const testimonials = [
-  {
-    name: "Wagner Henrique",
-    role: "CEO da PrimeCode",
-    content: "O HUB FDS mudou a forma como nossa equipe colabora. O ambiente é inspirador e a infraestrutura é impecável.",
-    avatar: "https://i.pravatar.cc/150?u=ricardo"
-  },
-  {
-    name: "Ana Oliveira",
-    role: "Fundadora da CreativeMind",
-    content: "Melhor lugar em Arapiraca para realizar workshops. O suporte da equipe é sensacional e o espaço é muito moderno.",
-    avatar: "https://i.pravatar.cc/150?u=ana"
-  },
-  {
-    name: "Marcos Lima",
-    role: "Desenvolvedor Fullstack",
-    content: "O networking que fiz aqui valeu cada centavo. Conectei-me com parceiros que hoje são fundamentais para meu negócio.",
-    avatar: "https://i.pravatar.cc/150?u=marcos"
-  }
-];
+type TestimonialsProps = {
+  testimonials: LandingTestimonial[];
+};
 
-const Testimonials = () => {
+const Testimonials = ({ testimonials }: TestimonialsProps) => {
   return (
     <section className="py-24 bg-secondary/20">
       <div className="container mx-auto px-6">

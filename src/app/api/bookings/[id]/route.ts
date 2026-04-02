@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireRole } from "@/lib/auth-guards";
 
 export async function GET(
   request: Request,
@@ -12,6 +11,11 @@ export async function GET(
 
     const booking = await prisma.booking.findUnique({
       where: { id },
+      select: {
+        id: true,
+        status: true,
+        updatedAt: true,
+      },
     });
 
     if (!booking) {
@@ -29,8 +33,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
+    const session = await requireRole(["ADMIN", "RECEPTION"]);
+    if (!session) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
@@ -53,8 +57,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
+    const session = await requireRole(["ADMIN", "RECEPTION"]);
+    if (!session) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 

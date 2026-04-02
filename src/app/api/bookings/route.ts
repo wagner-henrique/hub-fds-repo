@@ -4,9 +4,7 @@ import { bookingSchema, paginationSchema } from "@/lib/validations"
 import { processDirectPayment } from "@/lib/mercadopago"
 import { BookingStatus, Prisma } from "@prisma/client"
 import { z } from "zod"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
-import { parseBrazilOrIsoDateToUtc } from "@/lib/date-brazil"
+import { requireRole } from "@/lib/auth-guards"
 
 const cardPaymentSchema = z.object({
   method: z.literal("card"),
@@ -71,8 +69,8 @@ export async function GET(request: Request) {
       })
     }
 
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
+    const session = await requireRole(["ADMIN", "RECEPTION"])
+    if (!session) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
@@ -131,8 +129,8 @@ export async function POST(request: Request) {
     }
 
     if (paymentData.method === "manual") {
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.email) {
+      const session = await requireRole(["ADMIN", "RECEPTION"])
+      if (!session) {
         return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
       }
     }
