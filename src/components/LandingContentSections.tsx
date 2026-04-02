@@ -80,7 +80,7 @@ const LandingContentSections = () => {
         </section>
       )}
 
-      {state !== "loading" && data.spaces.length === 0 && data.testimonials.length === 0 && (
+      {state === "success" && data.spaces.length === 0 && data.testimonials.length === 0 && (
         <section className="py-16 bg-white">
           <div className="container mx-auto px-6">
             <div className="rounded-3xl border border-primary/10 bg-secondary/20 p-8 text-center">
