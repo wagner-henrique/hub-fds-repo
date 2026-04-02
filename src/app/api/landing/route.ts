@@ -73,9 +73,22 @@ export async function GET() {
       ? parseSettingArray(testimonialsSetting.value, isLandingTestimonial, FALLBACK_TESTIMONIALS)
       : FALLBACK_TESTIMONIALS
 
-    const updatedAt =
-      spacesSetting?.updatedAt?.toISOString() ?? testimonialsSetting?.updatedAt?.toISOString() ?? null
+    const latestUpdatedAt = [spacesSetting?.updatedAt, testimonialsSetting?.updatedAt].reduce<Date | null>(
+      (latest, current) => {
+        if (!current) {
+          return latest
+        }
 
+        if (!latest || current.getTime() > latest.getTime()) {
+          return current
+        }
+
+        return latest
+      },
+      null
+    )
+
+    const updatedAt = latestUpdatedAt?.toISOString() ?? null
     const payload: LandingContentResponse = {
       spaces,
       testimonials,
