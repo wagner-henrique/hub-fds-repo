@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { bookingSchema, paginationSchema } from "@/lib/validations"
+import { parseBrazilOrIsoDateToUtc } from "@/lib/date-brazil"
 import { processDirectPayment } from "@/lib/mercadopago"
 import { BookingStatus, Prisma } from "@prisma/client"
 import { z } from "zod"
