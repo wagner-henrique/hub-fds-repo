@@ -5,8 +5,8 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { isN8nAuthorized } from "@/lib/n8n-auth"
 import { parseBrazilOrIsoDateToUtc } from "@/lib/date-brazil"
+import { processDirectPayment } from "@/lib/mercadopago" 
 
-// Agora mapeia corretamente as 5 salas!
 const roomMap: Record<string, string> = {
   "reuniao": "reuniao",
   "sala de reuniao": "reuniao",
@@ -37,6 +37,7 @@ const createBookingSchema = z.object({
   numeroPessoas: z.coerce.number().int().min(1).optional().nullable(),
   observacoes: z.string().trim().max(1000).optional().nullable(),
   status: z.nativeEnum(BookingStatus).optional().nullable(),
+  valorSinal: z.coerce.number().optional().nullable(), 
 })
 
 const updateBookingSchema = z.object({
@@ -237,7 +238,31 @@ export async function POST(request: Request) {
         },
       })
 
-      return NextResponse.json({ data: booking, idReserva }, { status: 201 })
+      let pixCopiaECola = null
+
+      if (payload.valorSinal && payload.valorSinal > 0) {
+        try {
+          const paymentResponse = await processDirectPayment({
+            payment_method_id: "pix",
+            transaction_amount: payload.valorSinal,
+            payer: {
+              email: payload.email || `${normalizePhoneForEmail(payload.telefone)}@hub-fds.local`,
+            },
+          }, booking.id)
+
+          pixCopiaECola = paymentResponse.point_of_interaction?.transaction_data?.qr_code
+        } catch (error) {
+          console.error("Erro ao gerar PIX do sinal via n8n:", error)
+        }
+      }
+
+      // Devolve a chave PIX para a IA juntamente com os dados da reserva
+      return NextResponse.json({ 
+        data: booking, 
+        idReserva,
+        pixCopiaECola 
+      }, { status: 201 })
+
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         return NextResponse.json({ error: "Horário indisponível para este espaço" }, { status: 409 })
@@ -307,6 +332,14 @@ export async function DELETE(request: Request) {
 
   try {
     const body = await request.json().catch(() => ({}))
+    const cancelBookingSchema = z.object({
+      bookingId: z.string().optional().nullable(),
+      idReserva: z.string().optional().nullable(),
+    }).refine((data) => Boolean(data.bookingId || data.idReserva), {
+      message: "Informe bookingId ou idReserva",
+      path: ["bookingId"],
+    })
+    
     const payload = cancelBookingSchema.parse(body)
 
     const booking = await findBookingByIdentifiers({
