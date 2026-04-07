@@ -61,6 +61,11 @@ enum CrmActivityType {
   WHATSAPP
 }
 
+enum ContractType {
+  UPLOADED
+  GENERATED
+}
+
 model Booking {
   id        String        @id @default(cuid())
   name      String
@@ -133,10 +138,32 @@ model Client {
   deals    CrmDeal[]
   tasks    CrmTask[]
   activities CrmActivity[]
+  contracts Contract[]
 
   @@index([name])
   @@index([email])
   @@index([phone])
+}
+
+model Contract {
+  id            String       @id @default(cuid())
+  title         String
+  type          ContractType
+  clientId      String
+  fileName      String?
+  mimeType      String?
+  fileData      Bytes?
+  generatedHtml String?
+  metadata      Json?
+  createdBy     String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([type])
+  @@index([createdAt])
 }
 
 model CrmDeal {

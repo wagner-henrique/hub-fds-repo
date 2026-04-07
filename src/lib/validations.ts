@@ -108,9 +108,28 @@ export const crmActivitySchema = z
     path: ["clientId"],
   })
 
+export const contractGenerateSchema = z.object({
+  clientId: z.string().min(1),
+  title: z.string().min(3).max(140),
+  contractValue: z.coerce.number().min(0).default(0),
+  serviceDescription: z.string().min(3).max(2000),
+  startDate: z
+    .string()
+    .refine((val) => !Number.isNaN(Date.parse(val)), {
+      message: "Data de início inválida",
+    }),
+  endDate: z
+    .string()
+    .refine((val) => !Number.isNaN(Date.parse(val)), {
+      message: "Data de término inválida",
+    }),
+  city: z.string().min(2).max(80).default("Arapiraca"),
+})
+
 export type BookingInput = z.infer<typeof bookingSchema>
 export type LeadInput = z.infer<typeof leadSchema>
 export type ClientInput = z.infer<typeof clientSchema>
 export type CrmDealInput = z.infer<typeof crmDealSchema>
 export type CrmTaskInput = z.infer<typeof crmTaskSchema>
 export type CrmActivityInput = z.infer<typeof crmActivitySchema>
+export type ContractGenerateInput = z.infer<typeof contractGenerateSchema>

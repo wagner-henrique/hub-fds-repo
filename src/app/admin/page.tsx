@@ -79,6 +79,7 @@ const adminTabs = [
   { id: 'bookings', icon: CalendarIcon, label: 'Agendamentos' },
   { id: 'operational', icon: Grid3X3, label: 'Operacional' },
   { id: 'clients', icon: Users, label: 'Clientes' },
+  { id: 'contracts', icon: BriefcaseBusiness, label: 'Contratos' },
   { id: 'crm', icon: BriefcaseBusiness, label: 'CRM' },
   { id: 'leads', icon: Users, label: 'Leads' },
   { id: 'settings', icon: Settings, label: 'Configurações' },
@@ -110,6 +111,10 @@ const tabMeta: Record<string, { title: string; description: string }> = {
   clients: {
     title: 'Clientes',
     description: 'Cadastro, histórico e vínculo automático com agendamentos.',
+  },
+  contracts: {
+    title: 'Contratos',
+    description: 'Upload de PDFs e geração de contratos prontos para impressão.',
   },
   crm: {
     title: 'CRM Comercial',
@@ -234,6 +239,26 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
     content: "",
     clientId: "",
     dealId: "",
+  });
+  const [contracts, setContracts] = useState<any[]>([]);
+  const [contractsLoading, setContractsLoading] = useState(false);
+  const [isUploadContractDialogOpen, setIsUploadContractDialogOpen] = useState(false);
+  const [isGenerateContractDialogOpen, setIsGenerateContractDialogOpen] = useState(false);
+  const [uploadingContract, setUploadingContract] = useState(false);
+  const [generatingContract, setGeneratingContract] = useState(false);
+  const [uploadContractForm, setUploadContractForm] = useState({
+    title: "",
+    clientId: "",
+  });
+  const [uploadContractFile, setUploadContractFile] = useState<File | null>(null);
+  const [generateContractForm, setGenerateContractForm] = useState({
+    title: "Contrato de Prestação de Serviços",
+    clientId: "",
+    contractValue: "0",
+    serviceDescription: "",
+    startDate: "",
+    endDate: "",
+    city: "Arapiraca",
   });
   const [compactMode, setCompactMode] = useState(false);
   const [tabSwitchLoading, setTabSwitchLoading] = useState(false);
@@ -466,6 +491,33 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
     }
   };
 
+  const fetchContracts = async () => {
+    setContractsLoading(true)
+    try {
+      const [contractsRes, clientsRes] = await Promise.all([
+        fetch('/api/contracts?page=1&limit=50'),
+        fetch('/api/clients?page=1&limit=200'),
+      ])
+
+      if ([contractsRes, clientsRes].some((res) => res.status === 401 || res.status === 403)) {
+        await signOut({ callbackUrl: '/login' })
+        return
+      }
+
+      const [contractsPayload, clientsPayload] = await Promise.all([
+        contractsRes.json(),
+        clientsRes.json(),
+      ])
+
+      setContracts(contractsPayload?.data || [])
+      setClients(clientsPayload?.data || [])
+    } catch {
+      showError('Erro ao carregar contratos.')
+    } finally {
+      setContractsLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (activeTab === 'settings') {
       fetchUsers();
@@ -487,6 +539,12 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
 
     return () => clearTimeout(timeout);
   }, [activeTab, crmDealStageFilter, crmTaskStatusFilter, crmPeriodFilter]);
+
+  useEffect(() => {
+    if (activeTab === 'contracts') {
+      fetchContracts()
+    }
+  }, [activeTab]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -936,6 +994,94 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
     }
   };
 
+  const handleUploadContract = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!uploadContractForm.clientId || !uploadContractFile) {
+      showError('Selecione cliente e arquivo PDF.')
+      return
+    }
+
+    setUploadingContract(true)
+    try {
+      const formData = new FormData()
+      formData.set('title', uploadContractForm.title || 'Contrato anexado')
+      formData.set('clientId', uploadContractForm.clientId)
+      formData.set('file', uploadContractFile)
+
+      const response = await fetch('/api/contracts', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || 'Falha ao enviar contrato.')
+
+      showSuccess('Contrato enviado com sucesso.')
+      setIsUploadContractDialogOpen(false)
+      setUploadContractForm({ title: '', clientId: '' })
+      setUploadContractFile(null)
+      fetchContracts()
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao enviar contrato.')
+    } finally {
+      setUploadingContract(false)
+    }
+  }
+
+  const handleGenerateContract = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!generateContractForm.clientId || !generateContractForm.serviceDescription || !generateContractForm.startDate || !generateContractForm.endDate) {
+      showError('Preencha cliente, descrição, início e término.')
+      return
+    }
+
+    setGeneratingContract(true)
+    try {
+      const response = await fetch('/api/contracts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...generateContractForm,
+          contractValue: Number(generateContractForm.contractValue || 0),
+        }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || 'Falha ao gerar contrato.')
+
+      showSuccess('Contrato gerado com sucesso.')
+      setIsGenerateContractDialogOpen(false)
+      setGenerateContractForm({
+        title: 'Contrato de Prestação de Serviços',
+        clientId: '',
+        contractValue: '0',
+        serviceDescription: '',
+        startDate: '',
+        endDate: '',
+        city: 'Arapiraca',
+      })
+      fetchContracts()
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao gerar contrato.')
+    } finally {
+      setGeneratingContract(false)
+    }
+  }
+
+  const handleDeleteContract = async (id: string) => {
+    if (!confirm('Deseja excluir este contrato?')) return
+    try {
+      const response = await fetch(`/api/contracts/${id}`, { method: 'DELETE' })
+      if (!response.ok) throw new Error()
+      showSuccess('Contrato excluído com sucesso.')
+      setContracts((prev) => prev.filter((item) => item.id !== id))
+    } catch {
+      showError('Erro ao excluir contrato.')
+    }
+  }
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     const endpoint = activeTab === "bookings" ? `/api/bookings/${editingItem.id}` : `/api/leads/${editingItem.id}`;
@@ -1171,6 +1317,17 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                     className="rounded-xl"
                   >
                     <ChevronRight size={18} />
+                  </Button>
+                </>
+              )}
+              {activeTab === "contracts" && (
+                <>
+                  <Button className="rounded-xl" onClick={() => setIsUploadContractDialogOpen(true)}>
+                    <Plus size={16} className="mr-2" />
+                    Upload de PDF
+                  </Button>
+                  <Button variant="outline" className="rounded-xl" onClick={() => setIsGenerateContractDialogOpen(true)}>
+                    Gerar contrato
                   </Button>
                 </>
               )}
@@ -1494,6 +1651,64 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                             className="text-red-500"
                             onClick={() => handleDeleteClient(client.id)}
                           >
+                            <Trash2 size={18} />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {activeTab === "contracts" && (
+          <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-none bg-slate-50/70">
+                  <TableHead className={`px-8 ${tableHeadBaseClass}`}>Contrato</TableHead>
+                  <TableHead className={tableHeadBaseClass}>Cliente</TableHead>
+                  <TableHead className={tableHeadBaseClass}>Tipo</TableHead>
+                  <TableHead className={tableHeadBaseClass}>Criado em</TableHead>
+                  <TableHead className={`px-8 text-right ${tableHeadBaseClass}`}>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {contractsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-12 text-center text-slate-400">Carregando contratos...</TableCell>
+                  </TableRow>
+                ) : contracts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-12 text-center text-slate-400">Nenhum contrato encontrado.</TableCell>
+                  </TableRow>
+                ) : (
+                  contracts.map((contract) => (
+                    <TableRow key={contract.id} className="border-slate-50 transition-colors hover:bg-slate-50/50">
+                      <TableCell className={`${tableCellBaseClass} px-8`}>
+                        <div className="font-semibold text-slate-900">{contract.title}</div>
+                      </TableCell>
+                      <TableCell className={tableCellBaseClass}>{contract?.client?.name || '-'}</TableCell>
+                      <TableCell className={tableCellBaseClass}>
+                        <Badge variant="outline" className="rounded-lg">
+                          {contract.type === 'UPLOADED' ? 'PDF anexado' : 'Gerado'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className={tableCellBaseClass}>{new Date(contract.createdAt).toLocaleDateString('pt-BR')}</TableCell>
+                      <TableCell className={`${tableCellBaseClass} px-8 text-right`}>
+                        <div className="flex justify-end gap-2">
+                          {contract.type === 'UPLOADED' ? (
+                            <Button variant="outline" className="rounded-xl" onClick={() => window.open(`/api/contracts/${contract.id}/file`, '_blank')}>
+                              Ver PDF
+                            </Button>
+                          ) : (
+                            <Button variant="outline" className="rounded-xl" onClick={() => window.open(`/admin/contracts/print?id=${contract.id}`, '_blank')}>
+                              Imprimir
+                            </Button>
+                          )}
+                          <Button size="icon" variant="ghost" className="text-red-500" onClick={() => handleDeleteContract(contract.id)}>
                             <Trash2 size={18} />
                           </Button>
                         </div>
@@ -2456,6 +2671,129 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
               <DialogFooter className="border-t border-slate-100 pt-4">
                 <Button type="submit" className="w-full rounded-xl font-semibold" disabled={creatingActivity}>
                   {creatingActivity ? 'Salvando...' : 'Salvar interação'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isUploadContractDialogOpen} onOpenChange={setIsUploadContractDialogOpen}>
+          <DialogContent className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-0 shadow-lg sm:max-w-[620px]">
+            <DialogHeader>
+              <div className="border-b border-slate-100 px-6 py-5">
+                <DialogTitle className="text-xl font-semibold text-slate-900">Upload de Contrato PDF</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-slate-500">
+                  Envie um arquivo PDF e vincule ao cliente.
+                </DialogDescription>
+              </div>
+            </DialogHeader>
+
+            <form onSubmit={handleUploadContract} className="space-y-4 px-6 py-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Título</Label>
+                  <Input
+                    className="rounded-xl"
+                    value={uploadContractForm.title}
+                    onChange={(e) => setUploadContractForm({ ...uploadContractForm, title: e.target.value })}
+                    placeholder="Contrato de locação"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Cliente</Label>
+                  <Select value={uploadContractForm.clientId} onValueChange={(value) => setUploadContractForm({ ...uploadContractForm, clientId: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Arquivo PDF</Label>
+                <Input
+                  className="rounded-xl"
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null
+                    setUploadContractFile(file)
+                  }}
+                />
+              </div>
+
+              <DialogFooter className="border-t border-slate-100 pt-4">
+                <Button type="submit" className="w-full rounded-xl font-semibold" disabled={uploadingContract}>
+                  {uploadingContract ? 'Enviando...' : 'Salvar PDF'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isGenerateContractDialogOpen} onOpenChange={setIsGenerateContractDialogOpen}>
+          <DialogContent className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-0 shadow-lg sm:max-w-[700px]">
+            <DialogHeader>
+              <div className="border-b border-slate-100 px-6 py-5">
+                <DialogTitle className="text-xl font-semibold text-slate-900">Gerar Contrato para Impressão</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-slate-500">
+                  Preencha os dados para gerar um contrato imprimível.
+                </DialogDescription>
+              </div>
+            </DialogHeader>
+
+            <form onSubmit={handleGenerateContract} className="space-y-4 px-6 py-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Título</Label>
+                  <Input className="rounded-xl" value={generateContractForm.title} onChange={(e) => setGenerateContractForm({ ...generateContractForm, title: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Cliente</Label>
+                  <Select value={generateContractForm.clientId} onValueChange={(value) => setGenerateContractForm({ ...generateContractForm, clientId: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Valor</Label>
+                  <Input type="number" min="0" step="0.01" className="rounded-xl" value={generateContractForm.contractValue} onChange={(e) => setGenerateContractForm({ ...generateContractForm, contractValue: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Cidade</Label>
+                  <Input className="rounded-xl" value={generateContractForm.city} onChange={(e) => setGenerateContractForm({ ...generateContractForm, city: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Início</Label>
+                  <Input type="date" className="rounded-xl" value={generateContractForm.startDate} onChange={(e) => setGenerateContractForm({ ...generateContractForm, startDate: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Término</Label>
+                  <Input type="date" className="rounded-xl" value={generateContractForm.endDate} onChange={(e) => setGenerateContractForm({ ...generateContractForm, endDate: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Descrição do serviço</Label>
+                <Input className="rounded-xl" value={generateContractForm.serviceDescription} onChange={(e) => setGenerateContractForm({ ...generateContractForm, serviceDescription: e.target.value })} />
+              </div>
+
+              <DialogFooter className="border-t border-slate-100 pt-4">
+                <Button type="submit" className="w-full rounded-xl font-semibold" disabled={generatingContract}>
+                  {generatingContract ? 'Gerando...' : 'Gerar contrato'}
                 </Button>
               </DialogFooter>
             </form>
