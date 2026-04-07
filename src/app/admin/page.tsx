@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   LayoutDashboard, 
   Calendar as CalendarIcon, 
@@ -20,7 +20,7 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -50,6 +50,42 @@ const operationalRooms = [
   { id: "treinamento", label: "Sala de Treinamento" },
   { id: "coworking", label: "Coworking" },
 ]
+
+const adminTabs = [
+  { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { id: 'bookings', icon: CalendarIcon, label: 'Agendamentos' },
+  { id: 'operational', icon: Grid3X3, label: 'Operacional' },
+  { id: 'clients', icon: Users, label: 'Clientes' },
+  { id: 'leads', icon: Users, label: 'Leads' },
+  { id: 'settings', icon: Settings, label: 'Configurações' },
+]
+
+const tabMeta: Record<string, { title: string; description: string }> = {
+  dashboard: {
+    title: 'Painel Administrativo',
+    description: 'Visão consolidada das reservas e contatos do HUB FDS.',
+  },
+  bookings: {
+    title: 'Agendamentos',
+    description: 'Acompanhe, edite e crie reservas manuais.',
+  },
+  operational: {
+    title: 'Painel Operacional',
+    description: 'Ocupação por sala e horário com atualização rápida.',
+  },
+  clients: {
+    title: 'Clientes',
+    description: 'Cadastro, histórico e vínculo automático com agendamentos.',
+  },
+  leads: {
+    title: 'Leads',
+    description: 'Gerencie status e evolução dos contatos captados.',
+  },
+  settings: {
+    title: 'Configurações',
+    description: 'Controle de usuários e permissões de acesso.',
+  },
+}
 
 const AdminDashboard = () => {
   const [bookings, setBookings] = useState<any[]>([]);
@@ -86,6 +122,43 @@ const AdminDashboard = () => {
     status: "CONFIRMED",
     notes: "",
   });
+  const [clients, setClients] = useState<any[]>([]);
+  const [clientsLoading, setClientsLoading] = useState(false);
+  const [clientsPage, setClientsPage] = useState(1);
+  const [clientsTotalPages, setClientsTotalPages] = useState(1);
+  const [clientsSearchInput, setClientsSearchInput] = useState("");
+  const [clientsSearchTerm, setClientsSearchTerm] = useState("");
+  const [isCreateClientDialogOpen, setIsCreateClientDialogOpen] = useState(false);
+  const [isEditClientDialogOpen, setIsEditClientDialogOpen] = useState(false);
+  const [creatingClient, setCreatingClient] = useState(false);
+  const [updatingClient, setUpdatingClient] = useState(false);
+  const [editingClient, setEditingClient] = useState<any>(null);
+  const [newClient, setNewClient] = useState({
+    name: "",
+    type: "PF",
+    email: "",
+    phone: "",
+    whatsapp: "",
+    cpf: "",
+    cnpj: "",
+    birthDate: "",
+    address: "",
+    notes: "",
+  });
+  const [compactMode, setCompactMode] = useState(false);
+  const [tabSwitchLoading, setTabSwitchLoading] = useState(false);
+  const isFirstTabRender = useRef(true);
+
+  const tableHeadBaseClass = compactMode
+    ? "py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+    : "py-5 text-xs font-semibold uppercase tracking-wide text-slate-500";
+
+  const tableCellBaseClass = compactMode ? "py-3" : "py-6";
+
+  const handleTabChange = (tabId: string) => {
+    if (tabId === activeTab) return;
+    setActiveTab(tabId);
+  };
 
   const fetchData = async (currentPage: number) => {
     setLoading(true);
@@ -115,6 +188,26 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchData(page);
   }, [page]);
+
+  useEffect(() => {
+    if (window.innerWidth < 1024) {
+      setCompactMode(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isFirstTabRender.current) {
+      isFirstTabRender.current = false;
+      return;
+    }
+
+    setTabSwitchLoading(true);
+    const timeout = setTimeout(() => {
+      setTabSwitchLoading(false);
+    }, 380);
+
+    return () => clearTimeout(timeout);
+  }, [activeTab]);
 
   const fetchOperationalData = async (date: string) => {
     setOperationalLoading(true);
@@ -161,11 +254,45 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchClients = async (page: number, search: string) => {
+    setClientsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: "10",
+      });
+
+      if (search.trim()) {
+        params.set("search", search.trim());
+      }
+
+      const response = await fetch(`/api/clients?${params.toString()}`);
+      if (response.status === 401 || response.status === 403) {
+        await signOut({ callbackUrl: '/login' });
+        return;
+      }
+
+      const result = await response.json();
+      setClients(result?.data || []);
+      setClientsTotalPages(result?.meta?.totalPages || 1);
+    } catch {
+      showError("Erro ao carregar clientes.");
+    } finally {
+      setClientsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'settings') {
       fetchUsers();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'clients') {
+      fetchClients(clientsPage, clientsSearchTerm);
+    }
+  }, [activeTab, clientsPage, clientsSearchTerm]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -236,6 +363,107 @@ const AdminDashboard = () => {
     } catch (error: any) {
       showError(error?.message || 'Erro ao atualizar perfil.');
     }
+  };
+
+  const clearNewClient = () => {
+    setNewClient({
+      name: "",
+      type: "PF",
+      email: "",
+      phone: "",
+      whatsapp: "",
+      cpf: "",
+      cnpj: "",
+      birthDate: "",
+      address: "",
+      notes: "",
+    });
+  };
+
+  const handleCreateClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!newClient.name || !newClient.email || !newClient.phone) {
+      showError("Preencha nome, e-mail e telefone.");
+      return;
+    }
+
+    setCreatingClient(true);
+    try {
+      const response = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newClient),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Falha ao criar cliente.');
+      }
+
+      showSuccess('Cliente cadastrado com sucesso.');
+      setIsCreateClientDialogOpen(false);
+      clearNewClient();
+      fetchClients(clientsPage, clientsSearchTerm);
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao criar cliente.');
+    } finally {
+      setCreatingClient(false);
+    }
+  };
+
+  const handleUpdateClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!editingClient?.id) {
+      showError('Cliente inválido para atualização.');
+      return;
+    }
+
+    setUpdatingClient(true);
+    try {
+      const response = await fetch(`/api/clients/${editingClient.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingClient),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Falha ao atualizar cliente.');
+      }
+
+      showSuccess('Cliente atualizado com sucesso.');
+      setIsEditClientDialogOpen(false);
+      setEditingClient(null);
+      fetchClients(clientsPage, clientsSearchTerm);
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao atualizar cliente.');
+    } finally {
+      setUpdatingClient(false);
+    }
+  };
+
+  const handleDeleteClient = async (id: string) => {
+    if (!confirm("Deseja realmente excluir este cliente?")) return;
+
+    try {
+      const response = await fetch(`/api/clients/${id}`, { method: 'DELETE' });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Falha ao excluir cliente.');
+      }
+
+      showSuccess('Cliente excluído com sucesso.');
+      fetchClients(clientsPage, clientsSearchTerm);
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao excluir cliente.');
+    }
+  };
+
+  const applyClientsSearch = () => {
+    setClientsPage(1);
+    setClientsSearchTerm(clientsSearchInput);
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -346,144 +574,200 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <aside className="w-72 bg-white border-r border-slate-100 p-8 flex flex-col gap-10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white font-bold text-xl">H</div>
-          <span className="font-bold text-2xl text-primary tracking-tight">HUB Admin</span>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(7,151,140,0.09),transparent_55%)]">
+      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 px-4 py-6 md:px-6 md:py-8 lg:flex-row">
+      <aside className="w-full rounded-3xl border border-primary/10 bg-white/90 p-6 shadow-sm backdrop-blur lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)] lg:w-[280px] lg:shrink-0">
+        <div className="flex h-full flex-col gap-8">
+        <div className="flex items-center gap-3 px-1">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-base font-semibold text-white">H</div>
+          <div>
+            <p className="text-sm font-medium text-slate-500">Painel</p>
+            <span className="text-xl font-semibold tracking-tight text-primary">HUB Admin</span>
+          </div>
         </div>
 
-        <nav className="space-y-2">
-          {[
-            { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-            { id: 'bookings', icon: CalendarIcon, label: 'Agendamentos' },
-            { id: 'operational', icon: Grid3X3, label: 'Operacional' },
-            { id: 'leads', icon: Users, label: 'Leads' },
-            { id: 'settings', icon: Settings, label: 'Configurações' },
-          ].map((item) => (
+        <nav className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-1">
+          {adminTabs.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all ${
+              onClick={() => handleTabChange(item.id)}
+              className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition-all ${
                 activeTab === item.id 
-                ? 'bg-primary text-white shadow-lg shadow-primary/20' 
-                : 'text-slate-400 hover:text-primary hover:bg-primary/5'
+                ? 'bg-primary text-white shadow-md shadow-primary/25' 
+                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <item.icon size={20} />
+              <item.icon size={18} />
               {item.label}
             </button>
           ))}
         </nav>
 
-        <div className="mt-auto">
+        <div className="mt-auto border-t border-slate-100 pt-5">
           <Button
             variant="outline"
-            className="w-full rounded-2xl font-bold"
+            className="w-full rounded-2xl border-slate-200 font-medium"
             onClick={() => signOut({ callbackUrl: "/login" })}
           >
             <LogOut size={16} className="mr-2" />
             Sair
           </Button>
         </div>
+        </div>
       </aside>
 
-      <main className="flex-1 p-12 overflow-y-auto">
-        <header className="mb-12 flex justify-between items-end">
+      <main className="min-w-0 flex-1 overflow-y-auto rounded-3xl border border-slate-200/70 bg-white/85 p-5 shadow-sm backdrop-blur md:p-8">
+        <header className="mb-8 flex flex-col gap-4 border-b border-slate-100 pb-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-4xl font-bold text-slate-900 mb-2">
-              {activeTab === "operational" ? "Painel Operacional" : "Visão Geral"}
+            <h1 className="mb-2 text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">
+              {tabMeta[activeTab]?.title || "Painel Administrativo"}
             </h1>
-            <p className="text-slate-400 font-medium">
-              {activeTab === "operational"
-                ? "Acompanhe ocupação por sala e horário em tempo real."
-                : "Gerencie as reservas e contatos do HUB FDS."}
+            <p className="max-w-2xl text-sm text-slate-500 md:text-base">
+              {tabMeta[activeTab]?.description || "Gerencie as reservas e contatos do HUB FDS."}
             </p>
           </div>
-          {activeTab === "bookings" && (
-            <div className="flex items-center gap-2">
-              <Button className="rounded-xl" onClick={() => setIsCreateDialogOpen(true)}>
-                <Plus size={16} className="mr-2" />
-                Novo agendamento manual
-              </Button>
-              <Button 
-                variant="outline" 
-                size="icon" 
-                disabled={page === 1} 
-                onClick={() => setPage(p => p - 1)}
-                className="rounded-xl"
-              >
-                <ChevronLeft size={18} />
-              </Button>
-              <span className="text-sm font-bold px-4">Página {page} de {totalPages}</span>
-              <Button 
-                variant="outline" 
-                size="icon" 
-                disabled={page === totalPages} 
-                onClick={() => setPage(p => p + 1)}
-                className="rounded-xl"
-              >
-                <ChevronRight size={18} />
-              </Button>
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl border-slate-200"
+              onClick={() => setCompactMode((prev) => !prev)}
+            >
+              {compactMode ? "Modo confortável" : "Modo compacto"}
+            </Button>
+            {activeTab === "bookings" && (
+              <>
+                <Button className="rounded-xl" onClick={() => setIsCreateDialogOpen(true)}>
+                  <Plus size={16} className="mr-2" />
+                  Novo agendamento manual
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  disabled={page === 1} 
+                  onClick={() => setPage(p => p - 1)}
+                  className="rounded-xl"
+                >
+                  <ChevronLeft size={18} />
+                </Button>
+                <span className="px-2 text-sm font-semibold text-slate-600">Página {page} de {totalPages}</span>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  disabled={page === totalPages} 
+                  onClick={() => setPage(p => p + 1)}
+                  className="rounded-xl"
+                >
+                  <ChevronRight size={18} />
+                </Button>
+              </>
+            )}
+              {activeTab === "clients" && (
+                <>
+                  <Button className="rounded-xl" onClick={() => setIsCreateClientDialogOpen(true)}>
+                    <Plus size={16} className="mr-2" />
+                    Novo cliente
+                  </Button>
+                  <Input
+                    className="h-9 w-[220px] rounded-xl"
+                    placeholder="Buscar por nome, e-mail..."
+                    value={clientsSearchInput}
+                    onChange={(e) => setClientsSearchInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        applyClientsSearch();
+                      }
+                    }}
+                  />
+                  <Button variant="outline" className="rounded-xl" onClick={applyClientsSearch}>
+                    Buscar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    disabled={clientsPage === 1}
+                    onClick={() => setClientsPage((p) => p - 1)}
+                    className="rounded-xl"
+                  >
+                    <ChevronLeft size={18} />
+                  </Button>
+                  <span className="px-2 text-sm font-semibold text-slate-600">Página {clientsPage} de {clientsTotalPages}</span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    disabled={clientsPage === clientsTotalPages}
+                    onClick={() => setClientsPage((p) => p + 1)}
+                    className="rounded-xl"
+                  >
+                    <ChevronRight size={18} />
+                  </Button>
+                </>
+              )}
+          </div>
         </header>
+
+        {tabSwitchLoading && (
+          <div className="mb-6 overflow-hidden rounded-full bg-primary/10">
+            <div className="h-1 w-1/3 animate-pulse rounded-full bg-primary/70" />
+          </div>
+        )}
 
         {activeTab === "dashboard" && (
           <>
-            <div className="grid md:grid-cols-3 gap-8 mb-12">
-              <Card className="border-none shadow-sm rounded-[2rem] p-6 bg-white">
+            <div className="mb-8 grid gap-4 md:grid-cols-3">
+              <Card className="rounded-3xl border border-slate-100 bg-white p-6 shadow-none">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <p className="text-slate-500 font-bold text-sm mb-1">Total de Reservas</p>
-                    <h3 className="text-4xl font-black text-slate-900">{bookings.length}</h3>
+                    <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Total de Reservas</p>
+                    <h3 className="text-4xl font-semibold text-slate-900">{bookings.length}</h3>
                   </div>
-                  <div className="p-3 bg-primary/10 rounded-xl text-primary">
+                  <div className="rounded-xl bg-primary/10 p-3 text-primary">
                     <CalendarIcon size={24} />
                   </div>
                 </div>
-                <p className="text-xs text-slate-400 font-bold">Dados da página atual</p>
+                <p className="text-xs text-slate-400">Dados da página atual</p>
               </Card>
 
-              <Card className="border-none shadow-sm rounded-[2rem] p-6 bg-white">
+              <Card className="rounded-3xl border border-slate-100 bg-white p-6 shadow-none">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <p className="text-slate-500 font-bold text-sm mb-1">Novos Leads</p>
-                    <h3 className="text-4xl font-black text-slate-900">{leads.length}</h3>
+                    <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Novos Leads</p>
+                    <h3 className="text-4xl font-semibold text-slate-900">{leads.length}</h3>
                   </div>
-                  <div className="p-3 bg-primary/10 rounded-xl text-primary">
+                  <div className="rounded-xl bg-primary/10 p-3 text-primary">
                     <Users size={24} />
                   </div>
                 </div>
-                <p className="text-xs text-slate-400 font-bold">Total captado</p>
+                <p className="text-xs text-slate-400">Total captado</p>
               </Card>
 
-              <Card className="border-none shadow-sm rounded-[2rem] p-6 bg-white">
+              <Card className="rounded-3xl border border-slate-100 bg-white p-6 shadow-none">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <p className="text-slate-500 font-bold text-sm mb-1">Taxa de Conversão</p>
-                    <h3 className="text-4xl font-black text-slate-900">24%</h3>
+                    <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Taxa de Conversão</p>
+                    <h3 className="text-4xl font-semibold text-slate-900">24%</h3>
                   </div>
-                  <div className="p-3 bg-primary/10 rounded-xl text-primary">
+                  <div className="rounded-xl bg-primary/10 p-3 text-primary">
                     <Clock size={24} />
                   </div>
                 </div>
-                <p className="text-xs text-slate-400 font-bold">Média de fechamento</p>
+                <p className="text-xs text-slate-400">Média de fechamento</p>
               </Card>
             </div>
 
-            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-50 overflow-hidden">
-              <div className="p-8 border-b border-slate-50">
-                <h2 className="text-2xl font-bold text-slate-900">Agendamentos Recentes</h2>
+            <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white">
+              <div className="border-b border-slate-100 p-6">
+                <h2 className="text-xl font-semibold text-slate-900">Agendamentos Recentes</h2>
               </div>
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50/30 border-none">
-                    <TableHead className="py-6 px-8 text-slate-400 font-bold">Cliente</TableHead>
-                    <TableHead className="py-6 text-slate-400 font-bold">Data</TableHead>
-                    <TableHead className="py-6 text-slate-400 font-bold">Horário</TableHead>
-                    <TableHead className="py-6 text-slate-400 font-bold">Status</TableHead>
-                    <TableHead className="py-6 px-8 text-right text-slate-400 font-bold">Ações</TableHead>
+                  <TableRow className="border-none bg-slate-50/70">
+                    <TableHead className={`px-8 ${tableHeadBaseClass}`}>Cliente</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Data</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Horário</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Status</TableHead>
+                    <TableHead className={`px-8 text-right ${tableHeadBaseClass}`}>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -496,24 +780,24 @@ const AdminDashboard = () => {
                   ) : (
                     bookings.slice(0, 5).map((item: any) => (
                       <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors border-slate-50">
-                        <TableCell className="py-6 px-8">
+                        <TableCell className={`${tableCellBaseClass} px-8`}>
                           <div className="font-bold text-slate-900">{item.name}</div>
                           <div className="text-xs text-slate-400">{item.email}</div>
                         </TableCell>
-                        <TableCell className="py-6 font-medium text-slate-600">
+                        <TableCell className={`${tableCellBaseClass} font-medium text-slate-600`}>
                           {new Date(item.date).toLocaleDateString('pt-BR')}
                         </TableCell>
-                        <TableCell className="py-6 font-bold text-primary">
+                        <TableCell className={`${tableCellBaseClass} font-bold text-primary`}>
                           {item.time}
                         </TableCell>
-                        <TableCell className="py-6">
+                        <TableCell className={tableCellBaseClass}>
                           <Badge className={`rounded-lg px-3 py-1 font-bold ${
                             item.status === 'CONFIRMED' ? 'bg-primary' : item.status === 'CANCELLED' ? 'bg-red-500' : 'bg-amber-500'
                           }`}>
                             {bookingStatusLabels[item.status] || item.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="py-6 px-8 text-right">
+                        <TableCell className={`${tableCellBaseClass} px-8 text-right`}>
                           <div className="flex justify-end gap-2">
                             <Button size="icon" variant="ghost" onClick={() => { setEditingItem(item); setIsEditDialogOpen(true); }}>
                               <Edit3 size={18} className="text-primary" />
@@ -533,25 +817,25 @@ const AdminDashboard = () => {
         )}
 
         {(activeTab === "bookings" || activeTab === "leads") && (
-          <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-50 overflow-hidden">
+          <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white">
             <Table>
               <TableHeader>
-                <TableRow className="bg-slate-50/30 border-none">
-                  <TableHead className="py-6 px-8 text-slate-400 font-bold">Informações</TableHead>
-                  <TableHead className="py-6 text-slate-400 font-bold">{activeTab === "bookings" ? "Data/Hora" : "Origem"}</TableHead>
-                  <TableHead className="py-6 text-slate-400 font-bold">Status</TableHead>
-                  <TableHead className="py-6 px-8 text-right text-slate-400 font-bold">Ações</TableHead>
+                <TableRow className="border-none bg-slate-50/70">
+                  <TableHead className={`px-8 ${tableHeadBaseClass}`}>Informações</TableHead>
+                  <TableHead className={tableHeadBaseClass}>{activeTab === "bookings" ? "Data/Hora" : "Origem"}</TableHead>
+                  <TableHead className={tableHeadBaseClass}>Status</TableHead>
+                  <TableHead className={`px-8 text-right ${tableHeadBaseClass}`}>Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(activeTab === "bookings" ? bookings : leads).map((item: any) => (
                   <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors border-slate-50">
-                    <TableCell className="py-6 px-8">
+                    <TableCell className={`${tableCellBaseClass} px-8`}>
                       <div className="font-bold text-slate-900">{item.name}</div>
                       <div className="text-xs text-slate-400">{item.email}</div>
                       {item.phone && <div className="text-[10px] font-bold text-primary flex items-center gap-1 mt-1"><Phone size={10} /> {item.phone}</div>}
                     </TableCell>
-                    <TableCell className="py-6">
+                    <TableCell className={tableCellBaseClass}>
                       {activeTab === "bookings" ? (
                         <div className="flex flex-col">
                           <span className="font-medium text-slate-600">{new Date(item.date).toLocaleDateString('pt-BR')}</span>
@@ -561,14 +845,14 @@ const AdminDashboard = () => {
                         <Badge variant="outline" className="rounded-lg">{item.source}</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="py-6">
+                    <TableCell className={tableCellBaseClass}>
                       <Badge className={`rounded-lg px-3 py-1 font-bold ${
                         ['CONFIRMED', 'QUALIFIED'].includes(item.status) ? 'bg-primary' : item.status === 'CANCELLED' || item.status === 'LOST' ? 'bg-red-500' : 'bg-amber-500'
                       }`}>
                         {activeTab === "bookings" ? (bookingStatusLabels[item.status] || item.status) : (leadStatusLabels[item.status] || item.status)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="py-6 px-8 text-right">
+                    <TableCell className={`${tableCellBaseClass} px-8 text-right`}>
                       <div className="flex justify-end gap-2">
                         <Button size="icon" variant="ghost" onClick={() => { setEditingItem(item); setIsEditDialogOpen(true); }}>
                           <Edit3 size={18} className="text-primary" />
@@ -587,7 +871,7 @@ const AdminDashboard = () => {
 
         {activeTab === "operational" && (
           <div className="space-y-6">
-            <Card className="border-none shadow-sm rounded-[2rem] p-6 bg-white">
+            <Card className="rounded-3xl border border-slate-100 bg-white p-6 shadow-none">
               <div className="flex items-center gap-4">
                 <Label className="font-bold">Data da operação</Label>
                 <Input
@@ -602,33 +886,33 @@ const AdminDashboard = () => {
               </div>
             </Card>
 
-            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-50 overflow-auto">
+            <div className="overflow-auto rounded-[2rem] border border-slate-100 bg-white">
               <table className="w-full min-w-[980px]">
                 <thead>
                   <tr className="bg-slate-50/30 border-b border-slate-100">
-                    <th className="text-left py-5 px-6 text-slate-400 font-bold">Sala / Horário</th>
+                    <th className={`px-6 text-left ${tableHeadBaseClass}`}>Sala / Horário</th>
                     {operationalTimeSlots.map((slot) => (
-                      <th key={slot} className="py-5 px-4 text-center text-slate-400 font-bold">{slot}</th>
+                      <th key={slot} className={`px-4 text-center ${tableHeadBaseClass}`}>{slot}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {operationalRooms.map((room) => (
                     <tr key={room.id} className="border-b border-slate-50">
-                      <td className="py-4 px-6 font-bold text-slate-700">{room.label}</td>
+                      <td className={`${compactMode ? 'py-3' : 'py-4'} px-6 font-bold text-slate-700`}>{room.label}</td>
                       {operationalTimeSlots.map((slot) => {
                         const booking = findOperationalBooking(room.id, slot)
 
                         if (!booking) {
                           return (
-                            <td key={`${room.id}-${slot}`} className="py-4 px-3 text-center">
+                            <td key={`${room.id}-${slot}`} className={`${compactMode ? 'py-3' : 'py-4'} px-3 text-center`}>
                               <Badge variant="outline" className="rounded-lg text-slate-400 border-slate-200">Livre</Badge>
                             </td>
                           )
                         }
 
                         return (
-                          <td key={`${room.id}-${slot}`} className="py-4 px-3 text-center">
+                          <td key={`${room.id}-${slot}`} className={`${compactMode ? 'py-3' : 'py-4'} px-3 text-center`}>
                             <div className="flex flex-col items-center gap-1">
                               <Badge className={`rounded-lg px-2 py-1 text-[11px] font-bold ${
                                 booking.status === "CONFIRMED"
@@ -658,10 +942,88 @@ const AdminDashboard = () => {
           </div>
         )}
 
+        {activeTab === "clients" && (
+          <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-none bg-slate-50/70">
+                  <TableHead className={`px-8 ${tableHeadBaseClass}`}>Cliente</TableHead>
+                  <TableHead className={tableHeadBaseClass}>Contato</TableHead>
+                  <TableHead className={tableHeadBaseClass}>Documento</TableHead>
+                  <TableHead className={tableHeadBaseClass}>Agendamentos</TableHead>
+                  <TableHead className={`px-8 text-right ${tableHeadBaseClass}`}>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {clientsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-12 text-center text-slate-400">
+                      Carregando clientes...
+                    </TableCell>
+                  </TableRow>
+                ) : clients.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-12 text-center text-slate-400">
+                      Nenhum cliente encontrado.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  clients.map((client) => (
+                    <TableRow key={client.id} className="border-slate-50 transition-colors hover:bg-slate-50/50">
+                      <TableCell className={`${tableCellBaseClass} px-8`}>
+                        <div className="font-bold text-slate-900">{client.name}</div>
+                        <div className="text-xs text-slate-400">{client.type === "PF" ? "Pessoa Física" : "Pessoa Jurídica"}</div>
+                      </TableCell>
+                      <TableCell className={tableCellBaseClass}>
+                        <div className="text-sm text-slate-700">{client.email}</div>
+                        <div className="text-xs text-slate-500">{client.phone}</div>
+                        {client.whatsapp && <div className="text-xs text-slate-500">WhatsApp: {client.whatsapp}</div>}
+                      </TableCell>
+                      <TableCell className={tableCellBaseClass}>
+                        <div className="text-sm text-slate-700">{client.cpf || client.cnpj || "-"}</div>
+                      </TableCell>
+                      <TableCell className={tableCellBaseClass}>
+                        <Badge variant="outline" className="rounded-lg">
+                          {client?._count?.bookings ?? 0}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className={`${tableCellBaseClass} px-8 text-right`}>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingClient({
+                                ...client,
+                                birthDate: client.birthDate ? new Date(client.birthDate).toISOString().split("T")[0] : "",
+                              });
+                              setIsEditClientDialogOpen(true);
+                            }}
+                          >
+                            <Edit3 size={18} className="text-primary" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="text-red-500"
+                            onClick={() => handleDeleteClient(client.id)}
+                          >
+                            <Trash2 size={18} />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
         {activeTab === "settings" && (
           <div className="space-y-8">
-            <Card className="border-none shadow-sm rounded-[2rem] p-6 bg-white">
-              <h2 className="text-xl font-bold text-slate-900 mb-4">Criar conta de acesso</h2>
+            <Card className="rounded-3xl border border-slate-100 bg-white p-6 shadow-none">
+              <h2 className="mb-4 text-xl font-semibold text-slate-900">Criar conta de acesso</h2>
               <form className="grid md:grid-cols-4 gap-4" onSubmit={handleCreateUser}>
                 <Input
                   className="rounded-xl"
@@ -688,7 +1050,7 @@ const AdminDashboard = () => {
                     <SelectTrigger className="rounded-xl">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl">
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
                       <SelectItem value="RECEPTION">Recepção</SelectItem>
                       <SelectItem value="ADMIN">Admin</SelectItem>
                     </SelectContent>
@@ -700,14 +1062,14 @@ const AdminDashboard = () => {
               </form>
             </Card>
 
-            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-50 overflow-hidden">
+            <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50/30 border-none">
-                    <TableHead className="py-6 px-8 text-slate-400 font-bold">Usuário</TableHead>
-                    <TableHead className="py-6 text-slate-400 font-bold">Perfil</TableHead>
-                    <TableHead className="py-6 text-slate-400 font-bold">Situação</TableHead>
-                    <TableHead className="py-6 px-8 text-right text-slate-400 font-bold">Ações</TableHead>
+                  <TableRow className="border-none bg-slate-50/70">
+                    <TableHead className={`px-8 ${tableHeadBaseClass}`}>Usuário</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Perfil</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Situação</TableHead>
+                    <TableHead className={`px-8 text-right ${tableHeadBaseClass}`}>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -722,27 +1084,27 @@ const AdminDashboard = () => {
                   ) : (
                     adminUsers.map((user) => (
                       <TableRow key={user.id} className="hover:bg-slate-50/50 transition-colors border-slate-50">
-                        <TableCell className="py-6 px-8">
+                        <TableCell className={`${tableCellBaseClass} px-8`}>
                           <div className="font-bold text-slate-900">{user.name}</div>
                           <div className="text-xs text-slate-400">{user.email}</div>
                         </TableCell>
-                        <TableCell className="py-6">
+                        <TableCell className={tableCellBaseClass}>
                           <Select value={user.role} onValueChange={(value) => handleChangeUserRole(user, value as "ADMIN" | "RECEPTION")}>
                             <SelectTrigger className="rounded-xl max-w-[160px]">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent className="rounded-xl">
+                            <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
                               <SelectItem value="RECEPTION">Recepção</SelectItem>
                               <SelectItem value="ADMIN">Admin</SelectItem>
                             </SelectContent>
                           </Select>
                         </TableCell>
-                        <TableCell className="py-6">
+                        <TableCell className={tableCellBaseClass}>
                           <Badge className={`rounded-lg px-3 py-1 font-bold ${user.isActive ? 'bg-primary' : 'bg-slate-500'}`}>
                             {user.isActive ? 'Ativo' : 'Inativo'}
                           </Badge>
                         </TableCell>
-                        <TableCell className="py-6 px-8 text-right">
+                        <TableCell className={`${tableCellBaseClass} px-8 text-right`}>
                           <Button variant="outline" className="rounded-xl" onClick={() => handleToggleUserActive(user)}>
                             {user.isActive ? 'Desativar' : 'Ativar'}
                           </Button>
@@ -757,12 +1119,17 @@ const AdminDashboard = () => {
         )}
 
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[425px] rounded-[2rem]">
+          <DialogContent className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-0 shadow-lg sm:max-w-[520px]">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold">Editar Registro</DialogTitle>
+              <div className="border-b border-slate-100 px-6 py-5">
+                <DialogTitle className="text-xl font-semibold text-slate-900">Editar Registro</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-slate-500">
+                  Atualize os dados e salve para aplicar as mudanças.
+                </DialogDescription>
+              </div>
             </DialogHeader>
             {editingItem && (
-              <form onSubmit={handleUpdate} className="space-y-4 py-4">
+              <form onSubmit={handleUpdate} className="space-y-4 px-6 py-5">
                 <div className="grid gap-2">
                   <Label htmlFor="name">Nome</Label>
                   <Input id="name" className="rounded-xl" value={editingItem.name || ""} onChange={(e) => setEditingItem({...editingItem, name: e.target.value})} />
@@ -781,7 +1148,7 @@ const AdminDashboard = () => {
                     <SelectTrigger className="rounded-xl">
                       <SelectValue placeholder="Selecione o status" />
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl">
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
                       {activeTab === "bookings" ? (
                         <>
                           <SelectItem value="PENDING">Pendente</SelectItem>
@@ -800,8 +1167,8 @@ const AdminDashboard = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <DialogFooter className="pt-4">
-                  <Button type="submit" className="w-full rounded-xl font-bold">Salvar Alterações</Button>
+                <DialogFooter className="border-t border-slate-100 pt-4">
+                  <Button type="submit" className="w-full rounded-xl font-semibold">Salvar Alterações</Button>
                 </DialogFooter>
               </form>
             )}
@@ -809,12 +1176,17 @@ const AdminDashboard = () => {
         </Dialog>
 
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogContent className="sm:max-w-[520px] rounded-[2rem]">
+          <DialogContent className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-0 shadow-lg sm:max-w-[620px]">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold">Novo Agendamento Manual</DialogTitle>
+              <div className="border-b border-slate-100 px-6 py-5">
+                <DialogTitle className="text-xl font-semibold text-slate-900">Novo Agendamento Manual</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-slate-500">
+                  Registre uma reserva manual e sincronize com a operação.
+                </DialogDescription>
+              </div>
             </DialogHeader>
 
-            <form onSubmit={handleCreateManualBooking} className="space-y-4 py-2">
+            <form onSubmit={handleCreateManualBooking} className="space-y-4 px-6 py-5">
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label>Nome</Label>
@@ -835,7 +1207,7 @@ const AdminDashboard = () => {
                   <Label>Sala</Label>
                   <Select value={newBooking.room} onValueChange={(value) => setNewBooking({ ...newBooking, room: value })}>
                     <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                    <SelectContent className="rounded-xl">
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
                       <SelectItem value="reuniao">Sala de Reunião</SelectItem>
                       <SelectItem value="treinamento">Sala de Treinamento</SelectItem>
                       <SelectItem value="coworking">Coworking</SelectItem>
@@ -860,7 +1232,7 @@ const AdminDashboard = () => {
                   <Label>Origem</Label>
                   <Select value={newBooking.source} onValueChange={(value) => setNewBooking({ ...newBooking, source: value })}>
                     <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                    <SelectContent className="rounded-xl">
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
                       <SelectItem value="whatsapp">WhatsApp</SelectItem>
                       <SelectItem value="presencial">Presencial</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
@@ -871,7 +1243,7 @@ const AdminDashboard = () => {
                   <Label>Status</Label>
                   <Select value={newBooking.status} onValueChange={(value) => setNewBooking({ ...newBooking, status: value })}>
                     <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                    <SelectContent className="rounded-xl">
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
                       <SelectItem value="PENDING">Pendente</SelectItem>
                       <SelectItem value="CONFIRMED">Confirmado</SelectItem>
                       <SelectItem value="CANCELLED">Cancelado</SelectItem>
@@ -885,15 +1257,198 @@ const AdminDashboard = () => {
                 <Input className="rounded-xl" value={newBooking.notes} onChange={(e) => setNewBooking({ ...newBooking, notes: e.target.value })} placeholder="Opcional" />
               </div>
 
-              <DialogFooter className="pt-2">
-                <Button type="submit" className="w-full rounded-xl font-bold" disabled={creatingBooking}>
+              <DialogFooter className="border-t border-slate-100 pt-4">
+                <Button type="submit" className="w-full rounded-xl font-semibold" disabled={creatingBooking}>
                   {creatingBooking ? "Salvando..." : "Salvar agendamento manual"}
                 </Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={isCreateClientDialogOpen} onOpenChange={setIsCreateClientDialogOpen}>
+          <DialogContent className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-0 shadow-lg sm:max-w-[680px]">
+            <DialogHeader>
+              <div className="border-b border-slate-100 px-6 py-5">
+                <DialogTitle className="text-xl font-semibold text-slate-900">Novo Cliente</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-slate-500">
+                  Cadastre o cliente e vincule automaticamente reservas com o mesmo e-mail.
+                </DialogDescription>
+              </div>
+            </DialogHeader>
+
+            <form onSubmit={handleCreateClient} className="space-y-4 px-6 py-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Nome completo</Label>
+                  <Input value={newClient.name} onChange={(e) => setNewClient({ ...newClient, name: e.target.value })} className="rounded-xl" />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Tipo</Label>
+                  <Select value={newClient.type} onValueChange={(value) => {
+                    setNewClient((prev) => ({
+                      ...prev,
+                      type: value,
+                      cpf: value === "PF" ? prev.cpf : "",
+                      cnpj: value === "PJ" ? prev.cnpj : "",
+                    }));
+                  }}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <SelectItem value="PF">Pessoa Física</SelectItem>
+                      <SelectItem value="PJ">Pessoa Jurídica</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>E-mail</Label>
+                  <Input type="email" value={newClient.email} onChange={(e) => setNewClient({ ...newClient, email: e.target.value })} className="rounded-xl" />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Telefone</Label>
+                  <Input value={newClient.phone} onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })} className="rounded-xl" />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>WhatsApp</Label>
+                  <Input value={newClient.whatsapp} onChange={(e) => setNewClient({ ...newClient, whatsapp: e.target.value })} className="rounded-xl" />
+                </div>
+                {newClient.type === "PF" ? (
+                  <div className="grid gap-2">
+                    <Label>CPF</Label>
+                    <Input value={newClient.cpf} onChange={(e) => setNewClient({ ...newClient, cpf: e.target.value })} className="rounded-xl" />
+                  </div>
+                ) : (
+                  <div className="grid gap-2">
+                    <Label>CNPJ</Label>
+                    <Input value={newClient.cnpj} onChange={(e) => setNewClient({ ...newClient, cnpj: e.target.value })} className="rounded-xl" />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Data de nascimento</Label>
+                  <Input type="date" value={newClient.birthDate} onChange={(e) => setNewClient({ ...newClient, birthDate: e.target.value })} className="rounded-xl" />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Endereço</Label>
+                  <Input value={newClient.address} onChange={(e) => setNewClient({ ...newClient, address: e.target.value })} className="rounded-xl" />
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Observações internas</Label>
+                <Input value={newClient.notes} onChange={(e) => setNewClient({ ...newClient, notes: e.target.value })} className="rounded-xl" />
+              </div>
+
+              <DialogFooter className="border-t border-slate-100 pt-4">
+                <Button type="submit" className="w-full rounded-xl font-semibold" disabled={creatingClient}>
+                  {creatingClient ? "Salvando..." : "Salvar cliente"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isEditClientDialogOpen} onOpenChange={setIsEditClientDialogOpen}>
+          <DialogContent className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-0 shadow-lg sm:max-w-[680px]">
+            <DialogHeader>
+              <div className="border-b border-slate-100 px-6 py-5">
+                <DialogTitle className="text-xl font-semibold text-slate-900">Editar Cliente</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-slate-500">
+                  Altere os dados do cliente. O vínculo por e-mail será atualizado automaticamente.
+                </DialogDescription>
+              </div>
+            </DialogHeader>
+
+            {editingClient && (
+              <form onSubmit={handleUpdateClient} className="space-y-4 px-6 py-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label>Nome completo</Label>
+                    <Input value={editingClient.name || ""} onChange={(e) => setEditingClient({ ...editingClient, name: e.target.value })} className="rounded-xl" />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Tipo</Label>
+                    <Select value={editingClient.type || "PF"} onValueChange={(value) => {
+                      setEditingClient((prev: any) => ({
+                        ...prev,
+                        type: value,
+                        cpf: value === "PF" ? (prev?.cpf || "") : "",
+                        cnpj: value === "PJ" ? (prev?.cnpj || "") : "",
+                      }));
+                    }}>
+                      <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                      <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                        <SelectItem value="PF">Pessoa Física</SelectItem>
+                        <SelectItem value="PJ">Pessoa Jurídica</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label>E-mail</Label>
+                    <Input type="email" value={editingClient.email || ""} onChange={(e) => setEditingClient({ ...editingClient, email: e.target.value })} className="rounded-xl" />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Telefone</Label>
+                    <Input value={editingClient.phone || ""} onChange={(e) => setEditingClient({ ...editingClient, phone: e.target.value })} className="rounded-xl" />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label>WhatsApp</Label>
+                    <Input value={editingClient.whatsapp || ""} onChange={(e) => setEditingClient({ ...editingClient, whatsapp: e.target.value })} className="rounded-xl" />
+                  </div>
+                  {(editingClient.type || "PF") === "PF" ? (
+                    <div className="grid gap-2">
+                      <Label>CPF</Label>
+                      <Input value={editingClient.cpf || ""} onChange={(e) => setEditingClient({ ...editingClient, cpf: e.target.value })} className="rounded-xl" />
+                    </div>
+                  ) : (
+                    <div className="grid gap-2">
+                      <Label>CNPJ</Label>
+                      <Input value={editingClient.cnpj || ""} onChange={(e) => setEditingClient({ ...editingClient, cnpj: e.target.value })} className="rounded-xl" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label>Data de nascimento</Label>
+                    <Input type="date" value={editingClient.birthDate || ""} onChange={(e) => setEditingClient({ ...editingClient, birthDate: e.target.value })} className="rounded-xl" />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Endereço</Label>
+                    <Input value={editingClient.address || ""} onChange={(e) => setEditingClient({ ...editingClient, address: e.target.value })} className="rounded-xl" />
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label>Observações internas</Label>
+                  <Input value={editingClient.notes || ""} onChange={(e) => setEditingClient({ ...editingClient, notes: e.target.value })} className="rounded-xl" />
+                </div>
+
+                <DialogFooter className="border-t border-slate-100 pt-4">
+                  <Button type="submit" className="w-full rounded-xl font-semibold" disabled={updatingClient}>
+                    {updatingClient ? "Salvando..." : "Salvar alterações"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
+      </div>
     </div>
   );
 };

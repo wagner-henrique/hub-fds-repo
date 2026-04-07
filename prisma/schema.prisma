@@ -26,6 +26,11 @@ enum UserRole {
   RECEPTION
 }
 
+enum ClientType {
+  PF
+  PJ
+}
+
 model Booking {
   id        String        @id @default(cuid())
   name      String
@@ -36,12 +41,16 @@ model Booking {
   time      String
   status    BookingStatus @default(PENDING)
   notes     String?
+  clientId  String?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
+
+  client Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   @@unique([room, date, time])
   @@index([date, room, status])
   @@index([createdAt])
+  @@index([clientId])
 }
 
 model Lead {
@@ -73,4 +82,26 @@ model AdminUser {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model Client {
+  id          String     @id @default(cuid())
+  name        String
+  type        ClientType @default(PF)
+  email       String     @unique
+  phone       String
+  whatsapp    String?
+  cpf         String?    @unique
+  cnpj        String?    @unique
+  birthDate   DateTime?
+  address     String?
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  bookings Booking[]
+
+  @@index([name])
+  @@index([email])
+  @@index([phone])
 }

@@ -27,5 +27,38 @@ export const leadSchema = z.object({
   source: z.string().default("landing_page"),
 })
 
+export const clientSchema = z
+  .object({
+    name: z.string().min(2).max(120),
+    type: z.enum(["PF", "PJ"]).default("PF"),
+    email: z.string().email(),
+    phone: z.string().min(10).max(20),
+    whatsapp: z.string().min(10).max(20).optional().nullable(),
+    cpf: z.string().min(11).max(14).optional().nullable(),
+    cnpj: z.string().min(14).max(18).optional().nullable(),
+    birthDate: z
+      .string()
+      .optional()
+      .nullable()
+      .refine((val) => !val || !Number.isNaN(Date.parse(val)), {
+        message: "Data de nascimento inválida",
+      }),
+    address: z.string().max(255).optional().nullable(),
+    notes: z.string().max(1000).optional().nullable(),
+  })
+  .refine((data) => Boolean(data.email || data.phone), {
+    message: "Informe e-mail ou telefone",
+    path: ["email"],
+  })
+  .refine((data) => {
+    if (data.type === "PF") return Boolean(data.cpf)
+    if (data.type === "PJ") return Boolean(data.cnpj)
+    return true
+  }, {
+    message: "CPF é obrigatório para PF e CNPJ é obrigatório para PJ",
+    path: ["type"],
+  })
+
 export type BookingInput = z.infer<typeof bookingSchema>
 export type LeadInput = z.infer<typeof leadSchema>
+export type ClientInput = z.infer<typeof clientSchema>

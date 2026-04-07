@@ -168,6 +168,11 @@ export async function POST(request: Request) {
       ? paymentData.source === "whatsapp" ? "WhatsApp" : paymentData.source === "presencial" ? "Presencial" : "Admin"
       : null
 
+    const linkedClient = await prisma.client.findUnique({
+      where: { email: validatedData.email },
+      select: { id: true },
+    })
+
     let createdBookings = []
     const groupId = `GRP-${Date.now()}`
 
@@ -178,6 +183,7 @@ export async function POST(request: Request) {
             name: validatedData.name,
             email: validatedData.email,
             phone: validatedData.phone,
+            clientId: linkedClient?.id,
             room: validatedData.room,
             date: bookingDate,
             time: timeStr,
