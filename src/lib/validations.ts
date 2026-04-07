@@ -46,6 +46,55 @@ export const clientSchema = z
     address: z.string().max(255).optional().nullable(),
     notes: z.string().max(1000).optional().nullable(),
   })
+
+export const crmDealSchema = z.object({
+  title: z.string().min(2).max(120),
+  description: z.string().max(1000).optional().nullable(),
+  value: z.coerce.number().min(0).default(0),
+  stage: z.enum(["LEAD", "CONTACT", "PROPOSAL", "NEGOTIATION", "WON", "LOST"]).default("LEAD"),
+  expectedCloseDate: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((val) => !val || !Number.isNaN(Date.parse(val)), {
+      message: "Data esperada inválida",
+    }),
+  source: z.string().max(80).optional().nullable(),
+  clientId: z.string().min(1),
+})
+
+export const crmTaskSchema = z
+  .object({
+    title: z.string().min(2).max(140),
+    description: z.string().max(1000).optional().nullable(),
+    dueDate: z
+      .string()
+      .optional()
+      .nullable()
+      .refine((val) => !val || !Number.isNaN(Date.parse(val)), {
+        message: "Prazo inválido",
+      }),
+    status: z.enum(["OPEN", "IN_PROGRESS", "DONE", "CANCELED"]).default("OPEN"),
+    priority: z.enum(["LOW", "MEDIUM", "HIGH"]).default("MEDIUM"),
+    clientId: z.string().optional().nullable(),
+    dealId: z.string().optional().nullable(),
+  })
+  .refine((data) => Boolean(data.clientId || data.dealId), {
+    message: "Vincule a tarefa a um cliente ou negócio",
+    path: ["clientId"],
+  })
+
+export const crmActivitySchema = z
+  .object({
+    type: z.enum(["NOTE", "CALL", "MEETING", "EMAIL", "WHATSAPP"]).default("NOTE"),
+    content: z.string().min(2).max(2000),
+    clientId: z.string().optional().nullable(),
+    dealId: z.string().optional().nullable(),
+  })
+  .refine((data) => Boolean(data.clientId || data.dealId), {
+    message: "Informe cliente ou negócio para a interação",
+    path: ["clientId"],
+  })
   .refine((data) => Boolean(data.email || data.phone), {
     message: "Informe e-mail ou telefone",
     path: ["email"],
@@ -62,3 +111,6 @@ export const clientSchema = z
 export type BookingInput = z.infer<typeof bookingSchema>
 export type LeadInput = z.infer<typeof leadSchema>
 export type ClientInput = z.infer<typeof clientSchema>
+export type CrmDealInput = z.infer<typeof crmDealSchema>
+export type CrmTaskInput = z.infer<typeof crmTaskSchema>
+export type CrmActivityInput = z.infer<typeof crmActivitySchema>

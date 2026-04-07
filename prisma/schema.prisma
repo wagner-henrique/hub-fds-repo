@@ -31,6 +31,36 @@ enum ClientType {
   PJ
 }
 
+enum CrmDealStage {
+  LEAD
+  CONTACT
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum CrmTaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CANCELED
+}
+
+enum CrmTaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum CrmActivityType {
+  NOTE
+  CALL
+  MEETING
+  EMAIL
+  WHATSAPP
+}
+
 model Booking {
   id        String        @id @default(cuid())
   name      String
@@ -100,8 +130,70 @@ model Client {
   updatedAt   DateTime   @updatedAt
 
   bookings Booking[]
+  deals    CrmDeal[]
+  tasks    CrmTask[]
+  activities CrmActivity[]
 
   @@index([name])
   @@index([email])
   @@index([phone])
+}
+
+model CrmDeal {
+  id                String      @id @default(cuid())
+  title             String
+  description       String?
+  value             Float       @default(0)
+  stage             CrmDealStage @default(LEAD)
+  expectedCloseDate DateTime?
+  source            String?
+  clientId          String
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  client     Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  tasks      CrmTask[]
+  activities CrmActivity[]
+
+  @@index([clientId])
+  @@index([stage])
+  @@index([expectedCloseDate])
+}
+
+model CrmTask {
+  id          String          @id @default(cuid())
+  title       String
+  description String?
+  dueDate     DateTime?
+  status      CrmTaskStatus   @default(OPEN)
+  priority    CrmTaskPriority @default(MEDIUM)
+  clientId    String?
+  dealId      String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  client Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  deal   CrmDeal? @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([dealId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model CrmActivity {
+  id        String          @id @default(cuid())
+  type      CrmActivityType @default(NOTE)
+  content   String
+  clientId  String?
+  dealId    String?
+  createdAt DateTime        @default(now())
+
+  client Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  deal   CrmDeal? @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([dealId])
+  @@index([type])
+  @@index([createdAt])
 }

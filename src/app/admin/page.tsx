@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { 
   LayoutDashboard, 
   Calendar as CalendarIcon, 
@@ -14,7 +14,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
-  LogOut
+  LogOut,
+  BriefcaseBusiness,
+  ListTodo,
+  MessageSquare,
+  CircleDollarSign
 } from 'lucide-react';
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -26,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { showSuccess, showError } from '@/utils/toast';
 import { signOut } from 'next-auth/react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 const bookingStatusLabels: Record<string, string> = {
   PENDING: 'Pendente',
@@ -40,6 +45,24 @@ const leadStatusLabels: Record<string, string> = {
   QUALIFIED: 'Qualificado',
   LOST: 'Perdido',
 }
+
+const crmDealStageLabels: Record<string, string> = {
+  LEAD: 'Lead',
+  CONTACT: 'Contato',
+  PROPOSAL: 'Proposta',
+  NEGOTIATION: 'Negociação',
+  WON: 'Ganho',
+  LOST: 'Perdido',
+}
+
+const crmTaskStatusLabels: Record<string, string> = {
+  OPEN: 'Aberta',
+  IN_PROGRESS: 'Em andamento',
+  DONE: 'Concluída',
+  CANCELED: 'Cancelada',
+}
+
+const crmStagesOrder = ["LEAD", "CONTACT", "PROPOSAL", "NEGOTIATION", "WON", "LOST"] as const
 
 const operationalTimeSlots = [
   "08:00", "09:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00"
@@ -56,9 +79,20 @@ const adminTabs = [
   { id: 'bookings', icon: CalendarIcon, label: 'Agendamentos' },
   { id: 'operational', icon: Grid3X3, label: 'Operacional' },
   { id: 'clients', icon: Users, label: 'Clientes' },
+  { id: 'crm', icon: BriefcaseBusiness, label: 'CRM' },
   { id: 'leads', icon: Users, label: 'Leads' },
   { id: 'settings', icon: Settings, label: 'Configurações' },
 ]
+
+const validAdminTabIds = new Set(adminTabs.map((tab) => tab.id))
+
+const getTabFromPathname = (pathname: string) => {
+  const parts = pathname.split('/').filter(Boolean)
+  if (parts[0] !== 'admin') return 'dashboard'
+  const fromPath = parts[1]
+  if (!fromPath) return 'dashboard'
+  return validAdminTabIds.has(fromPath) ? fromPath : 'dashboard'
+}
 
 const tabMeta: Record<string, { title: string; description: string }> = {
   dashboard: {
@@ -77,6 +111,10 @@ const tabMeta: Record<string, { title: string; description: string }> = {
     title: 'Clientes',
     description: 'Cadastro, histórico e vínculo automático com agendamentos.',
   },
+  crm: {
+    title: 'CRM Comercial',
+    description: 'Pipeline de oportunidades, tarefas e histórico de relacionamento.',
+  },
   leads: {
     title: 'Leads',
     description: 'Gerencie status e evolução dos contatos captados.',
@@ -87,11 +125,18 @@ const tabMeta: Record<string, { title: string; description: string }> = {
   },
 }
 
-const AdminDashboard = () => {
+export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const initialPathTab = getTabFromPathname(pathname || '/admin')
+  const initialQueryTab = searchParams.get('tab')
+  const initialTab = forcedTab || initialPathTab || (initialQueryTab && validAdminTabIds.has(initialQueryTab) ? initialQueryTab : 'dashboard')
+
   const [bookings, setBookings] = useState<any[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [operationalDate, setOperationalDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -145,9 +190,55 @@ const AdminDashboard = () => {
     address: "",
     notes: "",
   });
+  const [crmSummary, setCrmSummary] = useState<any>(null);
+  const [crmDeals, setCrmDeals] = useState<any[]>([]);
+  const [crmTasks, setCrmTasks] = useState<any[]>([]);
+  const [crmActivities, setCrmActivities] = useState<any[]>([]);
+  const [crmLoading, setCrmLoading] = useState(false);
+  const [isCreateDealDialogOpen, setIsCreateDealDialogOpen] = useState(false);
+  const [isCreateTaskDialogOpen, setIsCreateTaskDialogOpen] = useState(false);
+  const [isCreateActivityDialogOpen, setIsCreateActivityDialogOpen] = useState(false);
+  const [creatingDeal, setCreatingDeal] = useState(false);
+  const [creatingTask, setCreatingTask] = useState(false);
+  const [creatingActivity, setCreatingActivity] = useState(false);
+  const [isEditDealDialogOpen, setIsEditDealDialogOpen] = useState(false);
+  const [isEditTaskDialogOpen, setIsEditTaskDialogOpen] = useState(false);
+  const [updatingDeal, setUpdatingDeal] = useState(false);
+  const [updatingTask, setUpdatingTask] = useState(false);
+  const [editingDeal, setEditingDeal] = useState<any>(null);
+  const [editingTask, setEditingTask] = useState<any>(null);
+  const [crmDealStageFilter, setCrmDealStageFilter] = useState("ALL");
+  const [crmTaskStatusFilter, setCrmTaskStatusFilter] = useState("ALL");
+  const [crmPeriodFilter, setCrmPeriodFilter] = useState("ALL");
+  const [draggingDealId, setDraggingDealId] = useState<string | null>(null);
+  const [newDeal, setNewDeal] = useState({
+    title: "",
+    description: "",
+    value: "0",
+    stage: "LEAD",
+    expectedCloseDate: "",
+    source: "",
+    clientId: "",
+  });
+  const [newTask, setNewTask] = useState({
+    title: "",
+    description: "",
+    dueDate: "",
+    status: "OPEN",
+    priority: "MEDIUM",
+    clientId: "",
+    dealId: "",
+  });
+  const [newActivity, setNewActivity] = useState({
+    type: "NOTE",
+    content: "",
+    clientId: "",
+    dealId: "",
+  });
   const [compactMode, setCompactMode] = useState(false);
   const [tabSwitchLoading, setTabSwitchLoading] = useState(false);
   const isFirstTabRender = useRef(true);
+  const crmRequestControllerRef = useRef<AbortController | null>(null);
 
   const tableHeadBaseClass = compactMode
     ? "py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500"
@@ -155,10 +246,63 @@ const AdminDashboard = () => {
 
   const tableCellBaseClass = compactMode ? "py-3" : "py-6";
 
+  const updateCrmFiltersInUrl = (updates: { dealStage?: string; taskStatus?: string; period?: string }) => {
+    const params = new URLSearchParams(searchParams.toString())
+    const finalDealStage = updates.dealStage ?? crmDealStageFilter
+    const finalTaskStatus = updates.taskStatus ?? crmTaskStatusFilter
+    const finalPeriod = updates.period ?? crmPeriodFilter
+
+    if (finalDealStage === 'ALL') params.delete('dealStage')
+    else params.set('dealStage', finalDealStage)
+
+    if (finalTaskStatus === 'ALL') params.delete('taskStatus')
+    else params.set('taskStatus', finalTaskStatus)
+
+    if (finalPeriod === 'ALL') params.delete('period')
+    else params.set('period', finalPeriod)
+
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname)
+  }
+
   const handleTabChange = (tabId: string) => {
     if (tabId === activeTab) return;
     setActiveTab(tabId);
+
+    const targetPath = tabId === 'dashboard' ? '/admin' : `/admin/${tabId}`
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('tab')
+
+    if (tabId !== 'crm') {
+      params.delete('dealStage')
+      params.delete('taskStatus')
+      params.delete('period')
+    }
+
+    const query = params.toString()
+    router.push(query ? `${targetPath}?${query}` : targetPath)
   };
+
+  useEffect(() => {
+    const pathTab = getTabFromPathname(pathname || '/admin')
+    const queryTab = searchParams.get('tab')
+    const resolvedTab = forcedTab || pathTab || (queryTab && validAdminTabIds.has(queryTab) ? queryTab : 'dashboard')
+    if (resolvedTab !== activeTab) {
+      setActiveTab(resolvedTab)
+    }
+  }, [forcedTab, pathname, searchParams, activeTab])
+
+  useEffect(() => {
+    if (activeTab !== 'crm') return
+
+    const stageFromQuery = searchParams.get('dealStage') || 'ALL'
+    const statusFromQuery = searchParams.get('taskStatus') || 'ALL'
+    const periodFromQuery = searchParams.get('period') || 'ALL'
+
+    if (stageFromQuery !== crmDealStageFilter) setCrmDealStageFilter(stageFromQuery)
+    if (statusFromQuery !== crmTaskStatusFilter) setCrmTaskStatusFilter(statusFromQuery)
+    if (periodFromQuery !== crmPeriodFilter) setCrmPeriodFilter(periodFromQuery)
+  }, [activeTab, searchParams])
 
   const fetchData = async (currentPage: number) => {
     setLoading(true);
@@ -282,6 +426,46 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchCrmData = async () => {
+    setCrmLoading(true);
+    crmRequestControllerRef.current?.abort();
+    const controller = new AbortController();
+    crmRequestControllerRef.current = controller;
+
+    try {
+      const params = new URLSearchParams();
+      if (crmDealStageFilter && crmDealStageFilter !== 'ALL') params.set('dealStage', crmDealStageFilter);
+      if (crmTaskStatusFilter && crmTaskStatusFilter !== 'ALL') params.set('taskStatus', crmTaskStatusFilter);
+      if (crmPeriodFilter && crmPeriodFilter !== 'ALL') params.set('period', crmPeriodFilter);
+
+      const response = await fetch(`/api/crm/dashboard?${params.toString()}`, {
+        signal: controller.signal,
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        await signOut({ callbackUrl: '/login' });
+        return;
+      }
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Falha ao carregar CRM');
+      }
+
+      setCrmSummary(payload?.summary || null);
+      setCrmDeals(payload?.deals || []);
+      setCrmTasks(payload?.tasks || []);
+      setCrmActivities(payload?.activities || []);
+      setClients(payload?.clients || []);
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return;
+      showError('Erro ao carregar dados do CRM.');
+    } finally {
+      setCrmLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'settings') {
       fetchUsers();
@@ -293,6 +477,16 @@ const AdminDashboard = () => {
       fetchClients(clientsPage, clientsSearchTerm);
     }
   }, [activeTab, clientsPage, clientsSearchTerm]);
+
+  useEffect(() => {
+    if (activeTab !== 'crm') return;
+
+    const timeout = setTimeout(() => {
+      fetchCrmData();
+    }, 120);
+
+    return () => clearTimeout(timeout);
+  }, [activeTab, crmDealStageFilter, crmTaskStatusFilter, crmPeriodFilter]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -464,6 +658,282 @@ const AdminDashboard = () => {
   const applyClientsSearch = () => {
     setClientsPage(1);
     setClientsSearchTerm(clientsSearchInput);
+  };
+
+  const handleCreateDeal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDeal.title || !newDeal.clientId) {
+      showError('Informe título e cliente para o negócio.');
+      return;
+    }
+
+    setCreatingDeal(true);
+    try {
+      const response = await fetch('/api/crm/deals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newDeal,
+          value: Number(newDeal.value || 0),
+          description: newDeal.description || null,
+          expectedCloseDate: newDeal.expectedCloseDate || null,
+          source: newDeal.source || null,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || 'Falha ao criar negócio.');
+
+      showSuccess('Negócio criado com sucesso.');
+      setIsCreateDealDialogOpen(false);
+      setNewDeal({ title: '', description: '', value: '0', stage: 'LEAD', expectedCloseDate: '', source: '', clientId: '' });
+      fetchCrmData();
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao criar negócio.');
+    } finally {
+      setCreatingDeal(false);
+    }
+  };
+
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTask.title || (!newTask.clientId && !newTask.dealId)) {
+      showError('Informe título e vínculo (cliente ou negócio).');
+      return;
+    }
+
+    setCreatingTask(true);
+    try {
+      const response = await fetch('/api/crm/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newTask,
+          description: newTask.description || null,
+          dueDate: newTask.dueDate || null,
+          clientId: newTask.clientId || null,
+          dealId: newTask.dealId || null,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || 'Falha ao criar tarefa.');
+
+      showSuccess('Tarefa criada com sucesso.');
+      setIsCreateTaskDialogOpen(false);
+      setNewTask({ title: '', description: '', dueDate: '', status: 'OPEN', priority: 'MEDIUM', clientId: '', dealId: '' });
+      fetchCrmData();
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao criar tarefa.');
+    } finally {
+      setCreatingTask(false);
+    }
+  };
+
+  const handleCreateActivity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newActivity.content || (!newActivity.clientId && !newActivity.dealId)) {
+      showError('Informe conteúdo e vínculo (cliente ou negócio).');
+      return;
+    }
+
+    setCreatingActivity(true);
+    try {
+      const response = await fetch('/api/crm/activities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newActivity,
+          clientId: newActivity.clientId || null,
+          dealId: newActivity.dealId || null,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || 'Falha ao registrar interação.');
+
+      showSuccess('Interação registrada com sucesso.');
+      setIsCreateActivityDialogOpen(false);
+      setNewActivity({ type: 'NOTE', content: '', clientId: '', dealId: '' });
+      fetchCrmData();
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao registrar interação.');
+    } finally {
+      setCreatingActivity(false);
+    }
+  };
+
+  const handleDealStageChange = async (deal: any, stage: string) => {
+    try {
+      const response = await fetch(`/api/crm/deals/${deal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: deal.title,
+          description: deal.description,
+          value: deal.value,
+          stage,
+          expectedCloseDate: deal.expectedCloseDate,
+          source: deal.source,
+          clientId: deal.clientId,
+        }),
+      });
+
+      if (!response.ok) throw new Error();
+      setCrmDeals((prev) => prev.map((item) => item.id === deal.id ? { ...item, stage } : item));
+      showSuccess('Etapa do negócio atualizada.');
+    } catch {
+      showError('Erro ao atualizar etapa do negócio.');
+    }
+  };
+
+  const handleUpdateDeal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDeal?.id) {
+      showError('Negócio inválido para edição.');
+      return;
+    }
+
+    setUpdatingDeal(true);
+    try {
+      const response = await fetch(`/api/crm/deals/${editingDeal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...editingDeal,
+          value: Number(editingDeal.value || 0),
+          expectedCloseDate: editingDeal.expectedCloseDate || null,
+          description: editingDeal.description || null,
+          source: editingDeal.source || null,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || 'Falha ao atualizar negócio.');
+
+      showSuccess('Negócio atualizado com sucesso.');
+      setIsEditDealDialogOpen(false);
+      setEditingDeal(null);
+      fetchCrmData();
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao atualizar negócio.');
+    } finally {
+      setUpdatingDeal(false);
+    }
+  };
+
+  const handleTaskStatusChange = async (task: any, status: string) => {
+    try {
+      const response = await fetch(`/api/crm/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: task.title,
+          description: task.description,
+          dueDate: task.dueDate,
+          status,
+          priority: task.priority,
+          clientId: task.clientId,
+          dealId: task.dealId,
+        }),
+      });
+
+      if (!response.ok) throw new Error();
+      setCrmTasks((prev) => prev.map((item) => item.id === task.id ? { ...item, status } : item));
+      showSuccess('Status da tarefa atualizado.');
+    } catch {
+      showError('Erro ao atualizar status da tarefa.');
+    }
+  };
+
+  const handleUpdateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTask?.id) {
+      showError('Tarefa inválida para edição.');
+      return;
+    }
+
+    setUpdatingTask(true);
+    try {
+      const response = await fetch(`/api/crm/tasks/${editingTask.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...editingTask,
+          dueDate: editingTask.dueDate || null,
+          description: editingTask.description || null,
+          clientId: editingTask.clientId || null,
+          dealId: editingTask.dealId || null,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || 'Falha ao atualizar tarefa.');
+
+      showSuccess('Tarefa atualizada com sucesso.');
+      setIsEditTaskDialogOpen(false);
+      setEditingTask(null);
+      fetchCrmData();
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao atualizar tarefa.');
+    } finally {
+      setUpdatingTask(false);
+    }
+  };
+
+  const filteredCrmDeals = useMemo(() => {
+    return crmDeals
+  }, [crmDeals]);
+
+  const filteredCrmTasks = useMemo(() => {
+    return crmTasks
+  }, [crmTasks]);
+
+  const filteredCrmActivities = useMemo(() => {
+    return crmActivities
+  }, [crmActivities]);
+
+  const groupedDealsByStage = useMemo(() => {
+    return crmStagesOrder.reduce((acc, stage) => {
+      acc[stage] = filteredCrmDeals.filter((deal) => deal.stage === stage);
+      return acc;
+    }, {} as Record<string, any[]>);
+  }, [filteredCrmDeals]);
+
+  const handleDropDealOnStage = async (stage: string) => {
+    if (!draggingDealId) return;
+    const dragged = crmDeals.find((item) => item.id === draggingDealId);
+    if (!dragged || dragged.stage === stage) {
+      setDraggingDealId(null);
+      return;
+    }
+
+    await handleDealStageChange(dragged, stage);
+    setDraggingDealId(null);
+  };
+
+  const handleDeleteDeal = async (id: string) => {
+    if (!confirm('Deseja excluir este negócio?')) return;
+    try {
+      const response = await fetch(`/api/crm/deals/${id}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error();
+      setCrmDeals((prev) => prev.filter((item) => item.id !== id));
+      showSuccess('Negócio excluído.');
+    } catch {
+      showError('Erro ao excluir negócio.');
+    }
+  };
+
+  const handleDeleteTask = async (id: string) => {
+    if (!confirm('Deseja excluir esta tarefa?')) return;
+    try {
+      const response = await fetch(`/api/crm/tasks/${id}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error();
+      setCrmTasks((prev) => prev.filter((item) => item.id !== id));
+      showSuccess('Tarefa excluída.');
+    } catch {
+      showError('Erro ao excluir tarefa.');
+    }
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -701,6 +1171,22 @@ const AdminDashboard = () => {
                     className="rounded-xl"
                   >
                     <ChevronRight size={18} />
+                  </Button>
+                </>
+              )}
+              {activeTab === "crm" && (
+                <>
+                  <Button className="rounded-xl" onClick={() => setIsCreateDealDialogOpen(true)}>
+                    <BriefcaseBusiness size={16} className="mr-2" />
+                    Novo negócio
+                  </Button>
+                  <Button variant="outline" className="rounded-xl" onClick={() => setIsCreateTaskDialogOpen(true)}>
+                    <ListTodo size={16} className="mr-2" />
+                    Nova tarefa
+                  </Button>
+                  <Button variant="outline" className="rounded-xl" onClick={() => setIsCreateActivityDialogOpen(true)}>
+                    <MessageSquare size={16} className="mr-2" />
+                    Nova interação
                   </Button>
                 </>
               )}
@@ -1017,6 +1503,309 @@ const AdminDashboard = () => {
                 )}
               </TableBody>
             </Table>
+          </div>
+        )}
+
+        {activeTab === "crm" && (
+          <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-4">
+              <Card className="rounded-3xl border border-slate-100 bg-white p-5 shadow-none">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Pipeline aberto</p>
+                <p className="mt-2 text-3xl font-semibold text-slate-900">{crmSummary?.openDeals ?? 0}</p>
+              </Card>
+              <Card className="rounded-3xl border border-slate-100 bg-white p-5 shadow-none">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Negócios ganhos</p>
+                <p className="mt-2 text-3xl font-semibold text-slate-900">{crmSummary?.wonDeals ?? 0}</p>
+              </Card>
+              <Card className="rounded-3xl border border-slate-100 bg-white p-5 shadow-none">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Tarefas em aberto</p>
+                <p className="mt-2 text-3xl font-semibold text-slate-900">{crmSummary?.tasksOpen ?? 0}</p>
+              </Card>
+              <Card className="rounded-3xl border border-slate-100 bg-white p-5 shadow-none">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Valor em pipeline</p>
+                <p className="mt-2 flex items-center gap-1 text-3xl font-semibold text-slate-900">
+                  <CircleDollarSign size={22} className="text-primary" />
+                  {Number(crmSummary?.pipelineValue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              </Card>
+            </div>
+
+            <Card className="rounded-3xl border border-slate-100 bg-white p-4 shadow-none">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid gap-1">
+                  <Label className="text-xs font-medium uppercase tracking-wide text-slate-500">Etapa do negócio</Label>
+                  <Select value={crmDealStageFilter} onValueChange={(value) => {
+                    setCrmDealStageFilter(value)
+                    updateCrmFiltersInUrl({ dealStage: value })
+                  }}>
+                    <SelectTrigger className="h-9 rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <SelectItem value="ALL">Todas</SelectItem>
+                      <SelectItem value="LEAD">Lead</SelectItem>
+                      <SelectItem value="CONTACT">Contato</SelectItem>
+                      <SelectItem value="PROPOSAL">Proposta</SelectItem>
+                      <SelectItem value="NEGOTIATION">Negociação</SelectItem>
+                      <SelectItem value="WON">Ganho</SelectItem>
+                      <SelectItem value="LOST">Perdido</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1">
+                  <Label className="text-xs font-medium uppercase tracking-wide text-slate-500">Status da tarefa</Label>
+                  <Select value={crmTaskStatusFilter} onValueChange={(value) => {
+                    setCrmTaskStatusFilter(value)
+                    updateCrmFiltersInUrl({ taskStatus: value })
+                  }}>
+                    <SelectTrigger className="h-9 rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <SelectItem value="ALL">Todos</SelectItem>
+                      <SelectItem value="OPEN">Aberta</SelectItem>
+                      <SelectItem value="IN_PROGRESS">Em andamento</SelectItem>
+                      <SelectItem value="DONE">Concluída</SelectItem>
+                      <SelectItem value="CANCELED">Cancelada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1">
+                  <Label className="text-xs font-medium uppercase tracking-wide text-slate-500">Período</Label>
+                  <Select value={crmPeriodFilter} onValueChange={(value) => {
+                    setCrmPeriodFilter(value)
+                    updateCrmFiltersInUrl({ period: value })
+                  }}>
+                    <SelectTrigger className="h-9 rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <SelectItem value="ALL">Todo período</SelectItem>
+                      <SelectItem value="7">Últimos 7 dias</SelectItem>
+                      <SelectItem value="30">Últimos 30 dias</SelectItem>
+                      <SelectItem value="90">Últimos 90 dias</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </Card>
+
+            <div className="overflow-x-auto rounded-[2rem] border border-slate-100 bg-white p-4">
+              <div className="grid min-w-[1100px] grid-cols-6 gap-3">
+                {crmStagesOrder.map((stage) => (
+                  <div
+                    key={stage}
+                    className="rounded-2xl border border-slate-100 bg-slate-50/50 p-3"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => handleDropDealOnStage(stage)}
+                  >
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">{crmDealStageLabels[stage]}</p>
+                      <Badge variant="outline" className="rounded-lg text-[10px]">{groupedDealsByStage[stage]?.length || 0}</Badge>
+                    </div>
+                    <div className="space-y-2">
+                      {(groupedDealsByStage[stage] || []).map((deal) => (
+                        <button
+                          key={deal.id}
+                          type="button"
+                          draggable
+                          onDragStart={() => setDraggingDealId(deal.id)}
+                          onDragEnd={() => setDraggingDealId(null)}
+                          onDoubleClick={() => {
+                            setEditingDeal({
+                              ...deal,
+                              value: String(deal.value ?? 0),
+                              expectedCloseDate: deal.expectedCloseDate ? new Date(deal.expectedCloseDate).toISOString().split("T")[0] : "",
+                            });
+                            setIsEditDealDialogOpen(true);
+                          }}
+                          className="w-full rounded-xl border border-slate-200 bg-white p-2 text-left transition hover:border-primary/40"
+                        >
+                          <p className="truncate text-sm font-semibold text-slate-800">{deal.title}</p>
+                          <p className="mt-1 text-[11px] text-slate-500">{deal?.client?.name || '-'}</p>
+                          <p className="text-[11px] font-medium text-primary">
+                            {Number(deal.value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-3">
+              <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white xl:col-span-2">
+                <div className="border-b border-slate-100 p-5">
+                  <h3 className="text-lg font-semibold text-slate-900">Negócios</h3>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-none bg-slate-50/70">
+                      <TableHead className={`px-6 ${tableHeadBaseClass}`}>Título</TableHead>
+                      <TableHead className={tableHeadBaseClass}>Cliente</TableHead>
+                      <TableHead className={tableHeadBaseClass}>Valor</TableHead>
+                      <TableHead className={tableHeadBaseClass}>Etapa</TableHead>
+                      <TableHead className={`px-6 text-right ${tableHeadBaseClass}`}>Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {crmLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="py-10 text-center text-slate-400">Carregando negócios...</TableCell>
+                      </TableRow>
+                    ) : filteredCrmDeals.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="py-10 text-center text-slate-400">Nenhum negócio cadastrado.</TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredCrmDeals.map((deal) => (
+                        <TableRow key={deal.id} className="border-slate-50 transition-colors hover:bg-slate-50/50">
+                          <TableCell className={`${tableCellBaseClass} px-6`}>
+                            <div className="font-semibold text-slate-900">{deal.title}</div>
+                            {deal.source && <div className="text-xs text-slate-500">Origem: {deal.source}</div>}
+                          </TableCell>
+                          <TableCell className={tableCellBaseClass}>{deal?.client?.name || '-'}</TableCell>
+                          <TableCell className={tableCellBaseClass}>
+                            {Number(deal.value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </TableCell>
+                          <TableCell className={tableCellBaseClass}>
+                            <Select value={deal.stage} onValueChange={(value) => handleDealStageChange(deal, value)}>
+                              <SelectTrigger className="h-9 rounded-xl"><SelectValue /></SelectTrigger>
+                              <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                                <SelectItem value="LEAD">Lead</SelectItem>
+                                <SelectItem value="CONTACT">Contato</SelectItem>
+                                <SelectItem value="PROPOSAL">Proposta</SelectItem>
+                                <SelectItem value="NEGOTIATION">Negociação</SelectItem>
+                                <SelectItem value="WON">Ganho</SelectItem>
+                                <SelectItem value="LOST">Perdido</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell className={`${tableCellBaseClass} px-6 text-right`}>
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => {
+                                  setEditingDeal({
+                                    ...deal,
+                                    value: String(deal.value ?? 0),
+                                    expectedCloseDate: deal.expectedCloseDate ? new Date(deal.expectedCloseDate).toISOString().split("T")[0] : "",
+                                  });
+                                  setIsEditDealDialogOpen(true);
+                                }}
+                              >
+                                <Edit3 size={18} className="text-primary" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="text-red-500" onClick={() => handleDeleteDeal(deal.id)}>
+                                <Trash2 size={18} />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white">
+                <div className="border-b border-slate-100 p-5">
+                  <h3 className="text-lg font-semibold text-slate-900">Interações recentes</h3>
+                </div>
+                <div className="max-h-[420px] space-y-3 overflow-y-auto p-5">
+                  {filteredCrmActivities.length === 0 ? (
+                    <p className="text-sm text-slate-400">Nenhuma interação registrada.</p>
+                  ) : (
+                    filteredCrmActivities.map((activity) => (
+                      <div key={activity.id} className="rounded-2xl border border-slate-100 bg-slate-50/50 p-3">
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <Badge variant="outline" className="rounded-lg text-[11px]">
+                            {activity.type}
+                          </Badge>
+                          <span className="text-[11px] text-slate-500">
+                            {new Date(activity.createdAt).toLocaleString('pt-BR')}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-700">{activity.content}</p>
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          {activity?.client?.name ? `Cliente: ${activity.client.name}` : ''}
+                          {activity?.deal?.title ? ` ${activity?.client?.name ? '•' : ''} Negócio: ${activity.deal.title}` : ''}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white">
+              <div className="border-b border-slate-100 p-5">
+                <h3 className="text-lg font-semibold text-slate-900">Tarefas</h3>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-none bg-slate-50/70">
+                    <TableHead className={`px-8 ${tableHeadBaseClass}`}>Tarefa</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Vínculo</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Prazo</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Status</TableHead>
+                    <TableHead className={`px-8 text-right ${tableHeadBaseClass}`}>Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredCrmTasks.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-10 text-center text-slate-400">Nenhuma tarefa cadastrada.</TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredCrmTasks.map((task) => (
+                      <TableRow key={task.id} className="border-slate-50 transition-colors hover:bg-slate-50/50">
+                        <TableCell className={`${tableCellBaseClass} px-8`}>
+                          <div className="font-semibold text-slate-900">{task.title}</div>
+                          {task.description && <div className="text-xs text-slate-500">{task.description}</div>}
+                        </TableCell>
+                        <TableCell className={tableCellBaseClass}>
+                          <div className="text-sm text-slate-700">{task?.client?.name || '-'}</div>
+                          {task?.deal?.title && <div className="text-xs text-slate-500">{task.deal.title}</div>}
+                        </TableCell>
+                        <TableCell className={tableCellBaseClass}>
+                          {task.dueDate ? new Date(task.dueDate).toLocaleDateString('pt-BR') : '-'}
+                        </TableCell>
+                        <TableCell className={tableCellBaseClass}>
+                          <Select value={task.status} onValueChange={(value) => handleTaskStatusChange(task, value)}>
+                            <SelectTrigger className="h-9 rounded-xl"><SelectValue /></SelectTrigger>
+                            <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                              <SelectItem value="OPEN">Aberta</SelectItem>
+                              <SelectItem value="IN_PROGRESS">Em andamento</SelectItem>
+                              <SelectItem value="DONE">Concluída</SelectItem>
+                              <SelectItem value="CANCELED">Cancelada</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className={`${tableCellBaseClass} px-8 text-right`}>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingTask({
+                                  ...task,
+                                  dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : "",
+                                  clientId: task.clientId || "",
+                                  dealId: task.dealId || "",
+                                });
+                                setIsEditTaskDialogOpen(true);
+                              }}
+                            >
+                              <Edit3 size={18} className="text-primary" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="text-red-500" onClick={() => handleDeleteTask(task.id)}>
+                              <Trash2 size={18} />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         )}
 
@@ -1447,10 +2236,402 @@ const AdminDashboard = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        <Dialog open={isCreateDealDialogOpen} onOpenChange={setIsCreateDealDialogOpen}>
+          <DialogContent className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-0 shadow-lg sm:max-w-[620px]">
+            <DialogHeader>
+              <div className="border-b border-slate-100 px-6 py-5">
+                <DialogTitle className="text-xl font-semibold text-slate-900">Novo Negócio</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-slate-500">
+                  Adicione uma oportunidade no pipeline comercial.
+                </DialogDescription>
+              </div>
+            </DialogHeader>
+
+            <form onSubmit={handleCreateDeal} className="space-y-4 px-6 py-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Título</Label>
+                  <Input className="rounded-xl" value={newDeal.title} onChange={(e) => setNewDeal({ ...newDeal, title: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Cliente</Label>
+                  <Select value={newDeal.clientId} onValueChange={(value) => setNewDeal({ ...newDeal, clientId: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-2">
+                  <Label>Valor</Label>
+                  <Input type="number" min="0" step="0.01" className="rounded-xl" value={newDeal.value} onChange={(e) => setNewDeal({ ...newDeal, value: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Etapa</Label>
+                  <Select value={newDeal.stage} onValueChange={(value) => setNewDeal({ ...newDeal, stage: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <SelectItem value="LEAD">Lead</SelectItem>
+                      <SelectItem value="CONTACT">Contato</SelectItem>
+                      <SelectItem value="PROPOSAL">Proposta</SelectItem>
+                      <SelectItem value="NEGOTIATION">Negociação</SelectItem>
+                      <SelectItem value="WON">Ganho</SelectItem>
+                      <SelectItem value="LOST">Perdido</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Fechamento previsto</Label>
+                  <Input type="date" className="rounded-xl" value={newDeal.expectedCloseDate} onChange={(e) => setNewDeal({ ...newDeal, expectedCloseDate: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Origem</Label>
+                  <Input className="rounded-xl" value={newDeal.source} onChange={(e) => setNewDeal({ ...newDeal, source: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Descrição</Label>
+                  <Input className="rounded-xl" value={newDeal.description} onChange={(e) => setNewDeal({ ...newDeal, description: e.target.value })} />
+                </div>
+              </div>
+
+              <DialogFooter className="border-t border-slate-100 pt-4">
+                <Button type="submit" className="w-full rounded-xl font-semibold" disabled={creatingDeal}>
+                  {creatingDeal ? 'Salvando...' : 'Salvar negócio'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isCreateTaskDialogOpen} onOpenChange={setIsCreateTaskDialogOpen}>
+          <DialogContent className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-0 shadow-lg sm:max-w-[620px]">
+            <DialogHeader>
+              <div className="border-b border-slate-100 px-6 py-5">
+                <DialogTitle className="text-xl font-semibold text-slate-900">Nova Tarefa</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-slate-500">
+                  Crie uma tarefa vinculada a cliente ou negócio.
+                </DialogDescription>
+              </div>
+            </DialogHeader>
+
+            <form onSubmit={handleCreateTask} className="space-y-4 px-6 py-5">
+              <div className="grid gap-2">
+                <Label>Título</Label>
+                <Input className="rounded-xl" value={newTask.title} onChange={(e) => setNewTask({ ...newTask, title: e.target.value })} />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Cliente</Label>
+                  <Select value={newTask.clientId} onValueChange={(value) => setNewTask({ ...newTask, clientId: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Opcional" /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Negócio</Label>
+                  <Select value={newTask.dealId} onValueChange={(value) => setNewTask({ ...newTask, dealId: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Opcional" /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      {crmDeals.map((deal) => (
+                        <SelectItem key={deal.id} value={deal.id}>{deal.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-2">
+                  <Label>Prazo</Label>
+                  <Input type="date" className="rounded-xl" value={newTask.dueDate} onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Status</Label>
+                  <Select value={newTask.status} onValueChange={(value) => setNewTask({ ...newTask, status: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <SelectItem value="OPEN">Aberta</SelectItem>
+                      <SelectItem value="IN_PROGRESS">Em andamento</SelectItem>
+                      <SelectItem value="DONE">Concluída</SelectItem>
+                      <SelectItem value="CANCELED">Cancelada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Prioridade</Label>
+                  <Select value={newTask.priority} onValueChange={(value) => setNewTask({ ...newTask, priority: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <SelectItem value="LOW">Baixa</SelectItem>
+                      <SelectItem value="MEDIUM">Média</SelectItem>
+                      <SelectItem value="HIGH">Alta</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Descrição</Label>
+                <Input className="rounded-xl" value={newTask.description} onChange={(e) => setNewTask({ ...newTask, description: e.target.value })} />
+              </div>
+
+              <DialogFooter className="border-t border-slate-100 pt-4">
+                <Button type="submit" className="w-full rounded-xl font-semibold" disabled={creatingTask}>
+                  {creatingTask ? 'Salvando...' : 'Salvar tarefa'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isCreateActivityDialogOpen} onOpenChange={setIsCreateActivityDialogOpen}>
+          <DialogContent className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-0 shadow-lg sm:max-w-[620px]">
+            <DialogHeader>
+              <div className="border-b border-slate-100 px-6 py-5">
+                <DialogTitle className="text-xl font-semibold text-slate-900">Nova Interação</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-slate-500">
+                  Registre histórico de contato com cliente ou oportunidade.
+                </DialogDescription>
+              </div>
+            </DialogHeader>
+
+            <form onSubmit={handleCreateActivity} className="space-y-4 px-6 py-5">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-2">
+                  <Label>Tipo</Label>
+                  <Select value={newActivity.type} onValueChange={(value) => setNewActivity({ ...newActivity, type: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <SelectItem value="NOTE">Nota</SelectItem>
+                      <SelectItem value="CALL">Ligação</SelectItem>
+                      <SelectItem value="MEETING">Reunião</SelectItem>
+                      <SelectItem value="EMAIL">E-mail</SelectItem>
+                      <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Cliente</Label>
+                  <Select value={newActivity.clientId} onValueChange={(value) => setNewActivity({ ...newActivity, clientId: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Opcional" /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Negócio</Label>
+                  <Select value={newActivity.dealId} onValueChange={(value) => setNewActivity({ ...newActivity, dealId: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Opcional" /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      {crmDeals.map((deal) => (
+                        <SelectItem key={deal.id} value={deal.id}>{deal.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Descrição da interação</Label>
+                <Input className="rounded-xl" value={newActivity.content} onChange={(e) => setNewActivity({ ...newActivity, content: e.target.value })} />
+              </div>
+
+              <DialogFooter className="border-t border-slate-100 pt-4">
+                <Button type="submit" className="w-full rounded-xl font-semibold" disabled={creatingActivity}>
+                  {creatingActivity ? 'Salvando...' : 'Salvar interação'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isEditDealDialogOpen} onOpenChange={setIsEditDealDialogOpen}>
+          <DialogContent className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-0 shadow-lg sm:max-w-[620px]">
+            <DialogHeader>
+              <div className="border-b border-slate-100 px-6 py-5">
+                <DialogTitle className="text-xl font-semibold text-slate-900">Editar Negócio</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-slate-500">
+                  Atualize os dados completos da oportunidade.
+                </DialogDescription>
+              </div>
+            </DialogHeader>
+
+            {editingDeal && (
+              <form onSubmit={handleUpdateDeal} className="space-y-4 px-6 py-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label>Título</Label>
+                    <Input className="rounded-xl" value={editingDeal.title || ""} onChange={(e) => setEditingDeal({ ...editingDeal, title: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Cliente</Label>
+                    <Select value={editingDeal.clientId || ""} onValueChange={(value) => setEditingDeal({ ...editingDeal, clientId: value })}>
+                      <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                      <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                        {clients.map((client) => (
+                          <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-2">
+                    <Label>Valor</Label>
+                    <Input type="number" min="0" step="0.01" className="rounded-xl" value={editingDeal.value || "0"} onChange={(e) => setEditingDeal({ ...editingDeal, value: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Etapa</Label>
+                    <Select value={editingDeal.stage || "LEAD"} onValueChange={(value) => setEditingDeal({ ...editingDeal, stage: value })}>
+                      <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                      <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                        <SelectItem value="LEAD">Lead</SelectItem>
+                        <SelectItem value="CONTACT">Contato</SelectItem>
+                        <SelectItem value="PROPOSAL">Proposta</SelectItem>
+                        <SelectItem value="NEGOTIATION">Negociação</SelectItem>
+                        <SelectItem value="WON">Ganho</SelectItem>
+                        <SelectItem value="LOST">Perdido</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Fechamento previsto</Label>
+                    <Input type="date" className="rounded-xl" value={editingDeal.expectedCloseDate || ""} onChange={(e) => setEditingDeal({ ...editingDeal, expectedCloseDate: e.target.value })} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label>Origem</Label>
+                    <Input className="rounded-xl" value={editingDeal.source || ""} onChange={(e) => setEditingDeal({ ...editingDeal, source: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Descrição</Label>
+                    <Input className="rounded-xl" value={editingDeal.description || ""} onChange={(e) => setEditingDeal({ ...editingDeal, description: e.target.value })} />
+                  </div>
+                </div>
+
+                <DialogFooter className="border-t border-slate-100 pt-4">
+                  <Button type="submit" className="w-full rounded-xl font-semibold" disabled={updatingDeal}>
+                    {updatingDeal ? 'Salvando...' : 'Salvar alterações'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isEditTaskDialogOpen} onOpenChange={setIsEditTaskDialogOpen}>
+          <DialogContent className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-0 shadow-lg sm:max-w-[620px]">
+            <DialogHeader>
+              <div className="border-b border-slate-100 px-6 py-5">
+                <DialogTitle className="text-xl font-semibold text-slate-900">Editar Tarefa</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-slate-500">
+                  Atualize os dados completos da tarefa.
+                </DialogDescription>
+              </div>
+            </DialogHeader>
+
+            {editingTask && (
+              <form onSubmit={handleUpdateTask} className="space-y-4 px-6 py-5">
+                <div className="grid gap-2">
+                  <Label>Título</Label>
+                  <Input className="rounded-xl" value={editingTask.title || ""} onChange={(e) => setEditingTask({ ...editingTask, title: e.target.value })} />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label>Cliente</Label>
+                    <Select value={editingTask.clientId || ""} onValueChange={(value) => setEditingTask({ ...editingTask, clientId: value })}>
+                      <SelectTrigger className="rounded-xl"><SelectValue placeholder="Opcional" /></SelectTrigger>
+                      <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                        {clients.map((client) => (
+                          <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Negócio</Label>
+                    <Select value={editingTask.dealId || ""} onValueChange={(value) => setEditingTask({ ...editingTask, dealId: value })}>
+                      <SelectTrigger className="rounded-xl"><SelectValue placeholder="Opcional" /></SelectTrigger>
+                      <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                        {crmDeals.map((deal) => (
+                          <SelectItem key={deal.id} value={deal.id}>{deal.title}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-2">
+                    <Label>Prazo</Label>
+                    <Input type="date" className="rounded-xl" value={editingTask.dueDate || ""} onChange={(e) => setEditingTask({ ...editingTask, dueDate: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Status</Label>
+                    <Select value={editingTask.status || "OPEN"} onValueChange={(value) => setEditingTask({ ...editingTask, status: value })}>
+                      <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                      <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                        <SelectItem value="OPEN">Aberta</SelectItem>
+                        <SelectItem value="IN_PROGRESS">Em andamento</SelectItem>
+                        <SelectItem value="DONE">Concluída</SelectItem>
+                        <SelectItem value="CANCELED">Cancelada</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Prioridade</Label>
+                    <Select value={editingTask.priority || "MEDIUM"} onValueChange={(value) => setEditingTask({ ...editingTask, priority: value })}>
+                      <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                      <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                        <SelectItem value="LOW">Baixa</SelectItem>
+                        <SelectItem value="MEDIUM">Média</SelectItem>
+                        <SelectItem value="HIGH">Alta</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label>Descrição</Label>
+                  <Input className="rounded-xl" value={editingTask.description || ""} onChange={(e) => setEditingTask({ ...editingTask, description: e.target.value })} />
+                </div>
+
+                <DialogFooter className="border-t border-slate-100 pt-4">
+                  <Button type="submit" className="w-full rounded-xl font-semibold" disabled={updatingTask}>
+                    {updatingTask ? 'Salvando...' : 'Salvar alterações'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
       </div>
     </div>
   );
 };
 
-export default AdminDashboard;
+export default function AdminPage() {
+  return <AdminDashboard />
+}
