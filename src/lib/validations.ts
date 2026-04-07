@@ -46,6 +46,18 @@ export const clientSchema = z
     address: z.string().max(255).optional().nullable(),
     notes: z.string().max(1000).optional().nullable(),
   })
+  .refine((data) => Boolean(data.email || data.phone), {
+    message: "Informe e-mail ou telefone",
+    path: ["email"],
+  })
+  .refine((data) => {
+    if (data.type === "PF") return Boolean(data.cpf)
+    if (data.type === "PJ") return Boolean(data.cnpj)
+    return true
+  }, {
+    message: "CPF é obrigatório para PF e CNPJ é obrigatório para PJ",
+    path: ["type"],
+  })
 
 export const crmDealSchema = z.object({
   title: z.string().min(2).max(120),
@@ -94,18 +106,6 @@ export const crmActivitySchema = z
   .refine((data) => Boolean(data.clientId || data.dealId), {
     message: "Informe cliente ou negócio para a interação",
     path: ["clientId"],
-  })
-  .refine((data) => Boolean(data.email || data.phone), {
-    message: "Informe e-mail ou telefone",
-    path: ["email"],
-  })
-  .refine((data) => {
-    if (data.type === "PF") return Boolean(data.cpf)
-    if (data.type === "PJ") return Boolean(data.cnpj)
-    return true
-  }, {
-    message: "CPF é obrigatório para PF e CNPJ é obrigatório para PJ",
-    path: ["type"],
   })
 
 export type BookingInput = z.infer<typeof bookingSchema>
