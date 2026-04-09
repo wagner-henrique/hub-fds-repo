@@ -62,6 +62,27 @@ const crmTaskStatusLabels: Record<string, string> = {
   CANCELED: 'Cancelada',
 }
 
+const financialTypeLabels: Record<string, string> = {
+  PAYABLE: 'A pagar',
+  RECEIVABLE: 'A receber',
+}
+
+const financialStatusLabels: Record<string, string> = {
+  PENDING: 'Pendente',
+  PARTIAL: 'Parcial',
+  PAID: 'Pago',
+  CANCELED: 'Cancelado',
+}
+
+const billingStatusLabels: Record<string, string> = {
+  DRAFT: 'Rascunho',
+  ISSUED: 'Emitida',
+  PARTIAL: 'Parcial',
+  PAID: 'Paga',
+  CANCELED: 'Cancelada',
+  OVERDUE: 'Atrasada',
+}
+
 const crmStagesOrder = ["LEAD", "CONTACT", "PROPOSAL", "NEGOTIATION", "WON", "LOST"] as const
 
 const operationalTimeSlots = [
@@ -79,6 +100,8 @@ const adminTabs = [
   { id: 'bookings', icon: CalendarIcon, label: 'Agendamentos' },
   { id: 'operational', icon: Grid3X3, label: 'Operacional' },
   { id: 'clients', icon: Users, label: 'Clientes' },
+  { id: 'finance', icon: CircleDollarSign, label: 'Financeiro' },
+  { id: 'billing', icon: CircleDollarSign, label: 'Faturamento' },
   { id: 'contracts', icon: BriefcaseBusiness, label: 'Contratos' },
   { id: 'crm', icon: BriefcaseBusiness, label: 'CRM' },
   { id: 'leads', icon: Users, label: 'Leads' },
@@ -111,6 +134,14 @@ const tabMeta: Record<string, { title: string; description: string }> = {
   clients: {
     title: 'Clientes',
     description: 'Cadastro, histórico e vínculo automático com agendamentos.',
+  },
+  finance: {
+    title: 'Financeiro',
+    description: 'Contas a pagar e receber com status, vencimentos e histórico.',
+  },
+  billing: {
+    title: 'Faturamento',
+    description: 'Emissão e controle de faturas com saldo, vencimento e status.',
   },
   contracts: {
     title: 'Contratos',
@@ -242,6 +273,59 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
   });
   const [contracts, setContracts] = useState<any[]>([]);
   const [contractsLoading, setContractsLoading] = useState(false);
+  const [financialEntries, setFinancialEntries] = useState<any[]>([]);
+  const [financeSummary, setFinanceSummary] = useState<any>(null);
+  const [financeLoading, setFinanceLoading] = useState(false);
+  const [financeTypeFilter, setFinanceTypeFilter] = useState("ALL");
+  const [financeStatusFilter, setFinanceStatusFilter] = useState("ALL");
+  const [financePeriodFilter, setFinancePeriodFilter] = useState("30");
+  const [isCreateFinanceDialogOpen, setIsCreateFinanceDialogOpen] = useState(false);
+  const [isEditFinanceDialogOpen, setIsEditFinanceDialogOpen] = useState(false);
+  const [creatingFinanceEntry, setCreatingFinanceEntry] = useState(false);
+  const [updatingFinanceEntry, setUpdatingFinanceEntry] = useState(false);
+  const [editingFinanceEntry, setEditingFinanceEntry] = useState<any>(null);
+  const [newFinanceEntry, setNewFinanceEntry] = useState({
+    type: "RECEIVABLE",
+    status: "PENDING",
+    title: "",
+    description: "",
+    category: "",
+    amount: "0",
+    amountPaid: "0",
+    dueDate: "",
+    paymentDate: "",
+    referenceCode: "",
+    clientId: "",
+  });
+  const [billingInvoices, setBillingInvoices] = useState<any[]>([]);
+  const [billingSummary, setBillingSummary] = useState<any>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingStatusFilter, setBillingStatusFilter] = useState("ALL");
+  const [billingPeriodFilter, setBillingPeriodFilter] = useState("30");
+  const [billingSearch, setBillingSearch] = useState("");
+  const [isCreateBillingDialogOpen, setIsCreateBillingDialogOpen] = useState(false);
+  const [isEditBillingDialogOpen, setIsEditBillingDialogOpen] = useState(false);
+  const [creatingBilling, setCreatingBilling] = useState(false);
+  const [updatingBilling, setUpdatingBilling] = useState(false);
+  const [editingBilling, setEditingBilling] = useState<any>(null);
+  const [newBilling, setNewBilling] = useState({
+    status: "DRAFT",
+    title: "",
+    clientId: "",
+    issueDate: "",
+    dueDate: "",
+    servicePeriodStart: "",
+    servicePeriodEnd: "",
+    itemDescription: "",
+    quantity: "1",
+    unitPrice: "0",
+    discount: "0",
+    tax: "0",
+    paidAmount: "0",
+    paymentMethod: "",
+    referenceCode: "",
+    notes: "",
+  });
   const [isUploadContractDialogOpen, setIsUploadContractDialogOpen] = useState(false);
   const [isGenerateContractDialogOpen, setIsGenerateContractDialogOpen] = useState(false);
   const [uploadingContract, setUploadingContract] = useState(false);
@@ -327,6 +411,7 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
     if (stageFromQuery !== crmDealStageFilter) setCrmDealStageFilter(stageFromQuery)
     if (statusFromQuery !== crmTaskStatusFilter) setCrmTaskStatusFilter(statusFromQuery)
     if (periodFromQuery !== crmPeriodFilter) setCrmPeriodFilter(periodFromQuery)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, searchParams])
 
   const fetchData = async (currentPage: number) => {
@@ -518,6 +603,82 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
     }
   }
 
+  const fetchFinanceData = async () => {
+    setFinanceLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (financeTypeFilter !== "ALL") params.set("type", financeTypeFilter)
+      if (financeStatusFilter !== "ALL") params.set("status", financeStatusFilter)
+      if (financePeriodFilter !== "ALL") params.set("period", financePeriodFilter)
+
+      const [entriesRes, summaryRes, clientsRes] = await Promise.all([
+        fetch(`/api/finance/entries?page=1&limit=100&${params.toString()}`),
+        fetch('/api/finance/summary'),
+        clients.length === 0 ? fetch('/api/clients?page=1&limit=200') : Promise.resolve(null as any),
+      ])
+
+      if ([entriesRes, summaryRes, clientsRes].filter(Boolean).some((res: any) => res.status === 401 || res.status === 403)) {
+        await signOut({ callbackUrl: '/login' })
+        return
+      }
+
+      const [entriesPayload, summaryPayload] = await Promise.all([
+        entriesRes.json(),
+        summaryRes.json(),
+      ])
+
+      setFinancialEntries(entriesPayload?.data || [])
+      setFinanceSummary(summaryPayload || null)
+
+      if (clientsRes) {
+        const clientsPayload = await clientsRes.json()
+        setClients(clientsPayload?.data || [])
+      }
+    } catch {
+      showError('Erro ao carregar financeiro.')
+    } finally {
+      setFinanceLoading(false)
+    }
+  }
+
+  const fetchBillingData = async () => {
+    setBillingLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (billingStatusFilter !== 'ALL') params.set('status', billingStatusFilter)
+      if (billingPeriodFilter !== 'ALL') params.set('period', billingPeriodFilter)
+      if (billingSearch.trim()) params.set('search', billingSearch.trim())
+
+      const [invoicesRes, summaryRes, clientsRes] = await Promise.all([
+        fetch(`/api/billing/invoices?page=1&limit=100&${params.toString()}`),
+        fetch('/api/billing/summary'),
+        clients.length === 0 ? fetch('/api/clients?page=1&limit=200') : Promise.resolve(null as any),
+      ])
+
+      if ([invoicesRes, summaryRes, clientsRes].filter(Boolean).some((res: any) => res.status === 401 || res.status === 403)) {
+        await signOut({ callbackUrl: '/login' })
+        return
+      }
+
+      const [invoicesPayload, summaryPayload] = await Promise.all([
+        invoicesRes.json(),
+        summaryRes.json(),
+      ])
+
+      setBillingInvoices(invoicesPayload?.data || [])
+      setBillingSummary(summaryPayload || null)
+
+      if (clientsRes) {
+        const clientsPayload = await clientsRes.json()
+        setClients(clientsPayload?.data || [])
+      }
+    } catch {
+      showError('Erro ao carregar faturamento.')
+    } finally {
+      setBillingLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (activeTab === 'settings') {
       fetchUsers();
@@ -538,6 +699,7 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
     }, 120);
 
     return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, crmDealStageFilter, crmTaskStatusFilter, crmPeriodFilter]);
 
   useEffect(() => {
@@ -545,6 +707,20 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
       fetchContracts()
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'finance') {
+      fetchFinanceData()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, financeTypeFilter, financeStatusFilter, financePeriodFilter]);
+
+  useEffect(() => {
+    if (activeTab === 'billing') {
+      fetchBillingData()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, billingStatusFilter, billingPeriodFilter]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -632,12 +808,41 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
     });
   };
 
+  const getApiErrorMessage = (data: any, fallback: string) => {
+    const details = Array.isArray(data?.details) ? data.details : []
+    const firstDetail = details.find((item: any) => item?.message)?.message
+    if (firstDetail) return String(firstDetail)
+    return data?.error || fallback
+  }
+
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!newClient.name || !newClient.email || !newClient.phone) {
       showError("Preencha nome, e-mail e telefone.");
       return;
+    }
+
+    if (newClient.type === "PF") {
+      if (!newClient.cpf.trim()) {
+        showError("CPF é obrigatório para pessoa física.")
+        return
+      }
+      if (newClient.cpf.trim().length < 11) {
+        showError("CPF deve conter no mínimo 11 caracteres.")
+        return
+      }
+    }
+
+    if (newClient.type === "PJ") {
+      if (!newClient.cnpj.trim()) {
+        showError("CNPJ é obrigatório para pessoa jurídica.")
+        return
+      }
+      if (newClient.cnpj.trim().length < 14) {
+        showError("CNPJ deve conter no mínimo 14 caracteres.")
+        return
+      }
     }
 
     setCreatingClient(true);
@@ -650,7 +855,7 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data?.error || 'Falha ao criar cliente.');
+        throw new Error(getApiErrorMessage(data, 'Falha ao criar cliente.'));
       }
 
       showSuccess('Cliente cadastrado com sucesso.');
@@ -672,6 +877,29 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
       return;
     }
 
+    const clientType = (editingClient.type || "PF") as "PF" | "PJ";
+    if (clientType === "PF") {
+      if (!String(editingClient.cpf || "").trim()) {
+        showError("CPF é obrigatório para pessoa física.")
+        return
+      }
+      if (String(editingClient.cpf || "").trim().length < 11) {
+        showError("CPF deve conter no mínimo 11 caracteres.")
+        return
+      }
+    }
+
+    if (clientType === "PJ") {
+      if (!String(editingClient.cnpj || "").trim()) {
+        showError("CNPJ é obrigatório para pessoa jurídica.")
+        return
+      }
+      if (String(editingClient.cnpj || "").trim().length < 14) {
+        showError("CNPJ deve conter no mínimo 14 caracteres.")
+        return
+      }
+    }
+
     setUpdatingClient(true);
     try {
       const response = await fetch(`/api/clients/${editingClient.id}`, {
@@ -682,7 +910,7 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data?.error || 'Falha ao atualizar cliente.');
+        throw new Error(getApiErrorMessage(data, 'Falha ao atualizar cliente.'));
       }
 
       showSuccess('Cliente atualizado com sucesso.');
@@ -1082,6 +1310,226 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
     }
   }
 
+  const toFinancePayload = (entry: any) => ({
+    type: entry.type,
+    status: entry.status,
+    title: entry.title,
+    description: entry.description || null,
+    category: entry.category || null,
+    amount: Number(entry.amount || 0),
+    amountPaid: Number(entry.amountPaid || 0),
+    dueDate: entry.dueDate,
+    paymentDate: entry.paymentDate || null,
+    referenceCode: entry.referenceCode || null,
+    clientId: entry.clientId || null,
+  })
+
+  const handleCreateFinanceEntry = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newFinanceEntry.title || !newFinanceEntry.dueDate) {
+      showError('Informe título e vencimento.')
+      return
+    }
+
+    setCreatingFinanceEntry(true)
+    try {
+      const response = await fetch('/api/finance/entries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(toFinancePayload(newFinanceEntry)),
+      })
+
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || 'Falha ao criar lançamento.')
+
+      showSuccess('Lançamento criado com sucesso.')
+      setIsCreateFinanceDialogOpen(false)
+      setNewFinanceEntry({
+        type: 'RECEIVABLE',
+        status: 'PENDING',
+        title: '',
+        description: '',
+        category: '',
+        amount: '0',
+        amountPaid: '0',
+        dueDate: '',
+        paymentDate: '',
+        referenceCode: '',
+        clientId: '',
+      })
+      fetchFinanceData()
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao criar lançamento.')
+    } finally {
+      setCreatingFinanceEntry(false)
+    }
+  }
+
+  const handleUpdateFinanceEntry = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingFinanceEntry?.id) {
+      showError('Lançamento inválido para edição.')
+      return
+    }
+
+    setUpdatingFinanceEntry(true)
+    try {
+      const response = await fetch(`/api/finance/entries/${editingFinanceEntry.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(toFinancePayload(editingFinanceEntry)),
+      })
+
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || 'Falha ao atualizar lançamento.')
+
+      showSuccess('Lançamento atualizado com sucesso.')
+      setIsEditFinanceDialogOpen(false)
+      setEditingFinanceEntry(null)
+      fetchFinanceData()
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao atualizar lançamento.')
+    } finally {
+      setUpdatingFinanceEntry(false)
+    }
+  }
+
+  const handleDeleteFinanceEntry = async (id: string) => {
+    if (!confirm('Deseja excluir este lançamento?')) return
+    try {
+      const response = await fetch(`/api/finance/entries/${id}`, { method: 'DELETE' })
+      if (!response.ok) throw new Error()
+      setFinancialEntries((prev) => prev.filter((item) => item.id !== id))
+      showSuccess('Lançamento excluído com sucesso.')
+      fetchFinanceData()
+    } catch {
+      showError('Erro ao excluir lançamento.')
+    }
+  }
+
+  const toBillingPayload = (billing: any) => {
+    const quantity = Number(billing.quantity || 0)
+    const unitPrice = Number(billing.unitPrice || 0)
+    const subtotal = quantity * unitPrice
+    const discount = Number(billing.discount || 0)
+    const tax = Number(billing.tax || 0)
+    const total = Math.max(subtotal - discount + tax, 0)
+
+    return {
+      status: billing.status,
+      title: billing.title,
+      clientId: billing.clientId,
+      issueDate: billing.issueDate,
+      dueDate: billing.dueDate,
+      servicePeriodStart: billing.servicePeriodStart || null,
+      servicePeriodEnd: billing.servicePeriodEnd || null,
+      items: [
+        {
+          description: billing.itemDescription || billing.title,
+          quantity,
+          unitPrice,
+          total: subtotal,
+        },
+      ],
+      subtotal,
+      discount,
+      tax,
+      total,
+      paidAmount: Number(billing.paidAmount || 0),
+      paymentMethod: billing.paymentMethod || null,
+      referenceCode: billing.referenceCode || null,
+      notes: billing.notes || null,
+    }
+  }
+
+  const handleCreateBilling = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newBilling.title || !newBilling.clientId || !newBilling.issueDate || !newBilling.dueDate) {
+      showError('Preencha título, cliente, emissão e vencimento.')
+      return
+    }
+
+    setCreatingBilling(true)
+    try {
+      const response = await fetch('/api/billing/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(toBillingPayload(newBilling)),
+      })
+
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || 'Falha ao criar faturamento.')
+
+      showSuccess('Fatura criada com sucesso.')
+      setIsCreateBillingDialogOpen(false)
+      setNewBilling({
+        status: 'DRAFT',
+        title: '',
+        clientId: '',
+        issueDate: '',
+        dueDate: '',
+        servicePeriodStart: '',
+        servicePeriodEnd: '',
+        itemDescription: '',
+        quantity: '1',
+        unitPrice: '0',
+        discount: '0',
+        tax: '0',
+        paidAmount: '0',
+        paymentMethod: '',
+        referenceCode: '',
+        notes: '',
+      })
+      fetchBillingData()
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao criar faturamento.')
+    } finally {
+      setCreatingBilling(false)
+    }
+  }
+
+  const handleUpdateBilling = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingBilling?.id) {
+      showError('Fatura inválida para edição.')
+      return
+    }
+
+    setUpdatingBilling(true)
+    try {
+      const response = await fetch(`/api/billing/invoices/${editingBilling.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(toBillingPayload(editingBilling)),
+      })
+
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || 'Falha ao atualizar faturamento.')
+
+      showSuccess('Fatura atualizada com sucesso.')
+      setIsEditBillingDialogOpen(false)
+      setEditingBilling(null)
+      fetchBillingData()
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao atualizar faturamento.')
+    } finally {
+      setUpdatingBilling(false)
+    }
+  }
+
+  const handleDeleteBilling = async (id: string) => {
+    if (!confirm('Deseja excluir esta fatura?')) return
+    try {
+      const response = await fetch(`/api/billing/invoices/${id}`, { method: 'DELETE' })
+      if (!response.ok) throw new Error()
+      showSuccess('Fatura excluída com sucesso.')
+      setBillingInvoices((prev) => prev.filter((item) => item.id !== id))
+      fetchBillingData()
+    } catch {
+      showError('Erro ao excluir fatura.')
+    }
+  }
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     const endpoint = activeTab === "bookings" ? `/api/bookings/${editingItem.id}` : `/api/leads/${editingItem.id}`;
@@ -1328,6 +1776,37 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                   </Button>
                   <Button variant="outline" className="rounded-xl" onClick={() => setIsGenerateContractDialogOpen(true)}>
                     Gerar contrato
+                  </Button>
+                </>
+              )}
+              {activeTab === "finance" && (
+                <>
+                  <Button className="rounded-xl" onClick={() => setIsCreateFinanceDialogOpen(true)}>
+                    <Plus size={16} className="mr-2" />
+                    Novo lançamento
+                  </Button>
+                </>
+              )}
+              {activeTab === "billing" && (
+                <>
+                  <Button className="rounded-xl" onClick={() => setIsCreateBillingDialogOpen(true)}>
+                    <Plus size={16} className="mr-2" />
+                    Nova fatura
+                  </Button>
+                  <Input
+                    className="h-9 w-[220px] rounded-xl"
+                    placeholder="Buscar número, título..."
+                    value={billingSearch}
+                    onChange={(e) => setBillingSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        fetchBillingData()
+                      }
+                    }}
+                  />
+                  <Button variant="outline" className="rounded-xl" onClick={fetchBillingData}>
+                    Buscar
                   </Button>
                 </>
               )}
@@ -1660,6 +2139,330 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                 )}
               </TableBody>
             </Table>
+          </div>
+        )}
+
+        {activeTab === "finance" && (
+          <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <Card className="rounded-3xl border border-slate-100 bg-white p-5 shadow-none">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">A receber em aberto</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">
+                  {Number(financeSummary?.receivablesOpen || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              </Card>
+              <Card className="rounded-3xl border border-slate-100 bg-white p-5 shadow-none">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">A pagar em aberto</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">
+                  {Number(financeSummary?.payablesOpen || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              </Card>
+              <Card className="rounded-3xl border border-slate-100 bg-white p-5 shadow-none">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Recebimentos atrasados</p>
+                <p className="mt-2 text-2xl font-semibold text-red-600">
+                  {Number(financeSummary?.receivablesOverdue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              </Card>
+              <Card className="rounded-3xl border border-slate-100 bg-white p-5 shadow-none">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Pagamentos atrasados</p>
+                <p className="mt-2 text-2xl font-semibold text-red-600">
+                  {Number(financeSummary?.payablesOverdue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              </Card>
+            </div>
+
+            <Card className="rounded-3xl border border-slate-100 bg-white p-4 shadow-none">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid gap-1">
+                  <Label className="text-xs font-medium uppercase tracking-wide text-slate-500">Tipo</Label>
+                  <Select value={financeTypeFilter} onValueChange={setFinanceTypeFilter}>
+                    <SelectTrigger className="h-9 rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <SelectItem value="ALL">Todos</SelectItem>
+                      <SelectItem value="RECEIVABLE">A receber</SelectItem>
+                      <SelectItem value="PAYABLE">A pagar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1">
+                  <Label className="text-xs font-medium uppercase tracking-wide text-slate-500">Status</Label>
+                  <Select value={financeStatusFilter} onValueChange={setFinanceStatusFilter}>
+                    <SelectTrigger className="h-9 rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <SelectItem value="ALL">Todos</SelectItem>
+                      <SelectItem value="PENDING">Pendente</SelectItem>
+                      <SelectItem value="PARTIAL">Parcial</SelectItem>
+                      <SelectItem value="PAID">Pago</SelectItem>
+                      <SelectItem value="CANCELED">Cancelado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1">
+                  <Label className="text-xs font-medium uppercase tracking-wide text-slate-500">Período</Label>
+                  <Select value={financePeriodFilter} onValueChange={setFinancePeriodFilter}>
+                    <SelectTrigger className="h-9 rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <SelectItem value="ALL">Todo período</SelectItem>
+                      <SelectItem value="7">Últimos 7 dias</SelectItem>
+                      <SelectItem value="30">Últimos 30 dias</SelectItem>
+                      <SelectItem value="90">Últimos 90 dias</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </Card>
+
+            <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-none bg-slate-50/70">
+                    <TableHead className={`px-8 ${tableHeadBaseClass}`}>Título</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Cliente</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Tipo</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Valor</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Vencimento</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Status</TableHead>
+                    <TableHead className={`px-8 text-right ${tableHeadBaseClass}`}>Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {financeLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-12 text-center text-slate-400">Carregando financeiro...</TableCell>
+                    </TableRow>
+                  ) : financialEntries.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-12 text-center text-slate-400">Nenhum lançamento encontrado.</TableCell>
+                    </TableRow>
+                  ) : (
+                    financialEntries.map((entry) => (
+                      <TableRow key={entry.id} className="border-slate-50 transition-colors hover:bg-slate-50/50">
+                        <TableCell className={`${tableCellBaseClass} px-8`}>
+                          <div className="font-semibold text-slate-900">{entry.title}</div>
+                          {entry.category && <div className="text-xs text-slate-500">{entry.category}</div>}
+                        </TableCell>
+                        <TableCell className={tableCellBaseClass}>{entry?.client?.name || '-'}</TableCell>
+                        <TableCell className={tableCellBaseClass}>
+                          <Badge variant="outline" className="rounded-lg">
+                            {financialTypeLabels[entry.type] || entry.type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className={tableCellBaseClass}>
+                          {Number(entry.amount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </TableCell>
+                        <TableCell className={tableCellBaseClass}>
+                          {new Date(entry.dueDate).toLocaleDateString('pt-BR')}
+                        </TableCell>
+                        <TableCell className={tableCellBaseClass}>
+                          <Badge className={`rounded-lg px-3 py-1 font-bold ${
+                            entry.status === 'PAID'
+                              ? 'bg-primary'
+                              : entry.status === 'PARTIAL'
+                                ? 'bg-amber-500'
+                                : entry.status === 'CANCELED'
+                                  ? 'bg-slate-500'
+                                  : 'bg-red-500'
+                          }`}>
+                            {financialStatusLabels[entry.status] || entry.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className={`${tableCellBaseClass} px-8 text-right`}>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              className="rounded-xl"
+                              onClick={() => window.open(`/admin/billing/print?id=${invoice.id}`, '_blank')}
+                            >
+                              Imprimir
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="rounded-xl"
+                              onClick={() => window.open(`/api/billing/invoices/${invoice.id}/pdf`, '_blank')}
+                            >
+                              PDF
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingFinanceEntry({
+                                  ...entry,
+                                  amount: String(entry.amount ?? 0),
+                                  amountPaid: String(entry.amountPaid ?? 0),
+                                  dueDate: entry.dueDate ? new Date(entry.dueDate).toISOString().split('T')[0] : '',
+                                  paymentDate: entry.paymentDate ? new Date(entry.paymentDate).toISOString().split('T')[0] : '',
+                                  clientId: entry.clientId || '',
+                                })
+                                setIsEditFinanceDialogOpen(true)
+                              }}
+                            >
+                              <Edit3 size={18} className="text-primary" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="text-red-500" onClick={() => handleDeleteFinanceEntry(entry.id)}>
+                              <Trash2 size={18} />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "billing" && (
+          <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <Card className="rounded-3xl border border-slate-100 bg-white p-5 shadow-none">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Faturas emitidas</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">{billingSummary?.issuedCount ?? 0}</p>
+              </Card>
+              <Card className="rounded-3xl border border-slate-100 bg-white p-5 shadow-none">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Saldo em aberto</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">
+                  {Number(billingSummary?.openTotal || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              </Card>
+              <Card className="rounded-3xl border border-slate-100 bg-white p-5 shadow-none">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Saldo vencido</p>
+                <p className="mt-2 text-2xl font-semibold text-red-600">
+                  {Number(billingSummary?.overdueTotal || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              </Card>
+              <Card className="rounded-3xl border border-slate-100 bg-white p-5 shadow-none">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Recebido</p>
+                <p className="mt-2 text-2xl font-semibold text-primary">
+                  {Number(billingSummary?.receivedTotal || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              </Card>
+            </div>
+
+            <Card className="rounded-3xl border border-slate-100 bg-white p-4 shadow-none">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-1">
+                  <Label className="text-xs font-medium uppercase tracking-wide text-slate-500">Status</Label>
+                  <Select value={billingStatusFilter} onValueChange={setBillingStatusFilter}>
+                    <SelectTrigger className="h-9 rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <SelectItem value="ALL">Todos</SelectItem>
+                      <SelectItem value="DRAFT">Rascunho</SelectItem>
+                      <SelectItem value="ISSUED">Emitida</SelectItem>
+                      <SelectItem value="PARTIAL">Parcial</SelectItem>
+                      <SelectItem value="PAID">Paga</SelectItem>
+                      <SelectItem value="CANCELED">Cancelada</SelectItem>
+                      <SelectItem value="OVERDUE">Atrasada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1">
+                  <Label className="text-xs font-medium uppercase tracking-wide text-slate-500">Período</Label>
+                  <Select value={billingPeriodFilter} onValueChange={setBillingPeriodFilter}>
+                    <SelectTrigger className="h-9 rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <SelectItem value="ALL">Todo período</SelectItem>
+                      <SelectItem value="7">Últimos 7 dias</SelectItem>
+                      <SelectItem value="30">Últimos 30 dias</SelectItem>
+                      <SelectItem value="90">Últimos 90 dias</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </Card>
+
+            <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-none bg-slate-50/70">
+                    <TableHead className={`px-8 ${tableHeadBaseClass}`}>Fatura</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Cliente</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Emissão</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Vencimento</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Total / Saldo</TableHead>
+                    <TableHead className={tableHeadBaseClass}>Status</TableHead>
+                    <TableHead className={`px-8 text-right ${tableHeadBaseClass}`}>Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {billingLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-12 text-center text-slate-400">Carregando faturamento...</TableCell>
+                    </TableRow>
+                  ) : billingInvoices.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-12 text-center text-slate-400">Nenhuma fatura encontrada.</TableCell>
+                    </TableRow>
+                  ) : (
+                    billingInvoices.map((invoice) => (
+                      <TableRow key={invoice.id} className="border-slate-50 transition-colors hover:bg-slate-50/50">
+                        <TableCell className={`${tableCellBaseClass} px-8`}>
+                          <div className="font-semibold text-slate-900">{invoice.number}</div>
+                          <div className="text-xs text-slate-500">{invoice.title}</div>
+                        </TableCell>
+                        <TableCell className={tableCellBaseClass}>{invoice?.client?.name || '-'}</TableCell>
+                        <TableCell className={tableCellBaseClass}>{new Date(invoice.issueDate).toLocaleDateString('pt-BR')}</TableCell>
+                        <TableCell className={tableCellBaseClass}>{new Date(invoice.dueDate).toLocaleDateString('pt-BR')}</TableCell>
+                        <TableCell className={tableCellBaseClass}>
+                          <div className="font-medium text-slate-800">
+                            {Number(invoice.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            Saldo: {Number(invoice.balance || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </div>
+                        </TableCell>
+                        <TableCell className={tableCellBaseClass}>
+                          <Badge className={`rounded-lg px-3 py-1 font-bold ${
+                            invoice.status === 'PAID'
+                              ? 'bg-primary'
+                              : invoice.status === 'PARTIAL'
+                                ? 'bg-amber-500'
+                                : invoice.status === 'CANCELED'
+                                  ? 'bg-slate-500'
+                                  : invoice.status === 'OVERDUE'
+                                    ? 'bg-red-500'
+                                    : 'bg-blue-500'
+                          }`}>
+                            {billingStatusLabels[invoice.status] || invoice.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className={`${tableCellBaseClass} px-8 text-right`}>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => {
+                                const firstItem = Array.isArray(invoice.items) ? invoice.items[0] : null
+                                setEditingBilling({
+                                  ...invoice,
+                                  issueDate: invoice.issueDate ? new Date(invoice.issueDate).toISOString().split('T')[0] : '',
+                                  dueDate: invoice.dueDate ? new Date(invoice.dueDate).toISOString().split('T')[0] : '',
+                                  servicePeriodStart: invoice.servicePeriodStart ? new Date(invoice.servicePeriodStart).toISOString().split('T')[0] : '',
+                                  servicePeriodEnd: invoice.servicePeriodEnd ? new Date(invoice.servicePeriodEnd).toISOString().split('T')[0] : '',
+                                  itemDescription: firstItem?.description || invoice.title,
+                                  quantity: String(firstItem?.quantity ?? 1),
+                                  unitPrice: String(firstItem?.unitPrice ?? invoice.subtotal ?? 0),
+                                  discount: String(invoice.discount ?? 0),
+                                  tax: String(invoice.tax ?? 0),
+                                  paidAmount: String(invoice.paidAmount ?? 0),
+                                })
+                                setIsEditBillingDialogOpen(true)
+                              }}
+                            >
+                              <Edit3 size={18} className="text-primary" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="text-red-500" onClick={() => handleDeleteBilling(invoice.id)}>
+                              <Trash2 size={18} />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         )}
 
@@ -2674,6 +3477,447 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                 </Button>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isCreateFinanceDialogOpen} onOpenChange={setIsCreateFinanceDialogOpen}>
+          <DialogContent className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-0 shadow-lg sm:max-w-[700px]">
+            <DialogHeader>
+              <div className="border-b border-slate-100 px-6 py-5">
+                <DialogTitle className="text-xl font-semibold text-slate-900">Novo Lançamento</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-slate-500">
+                  Registre uma conta a pagar ou a receber no financeiro.
+                </DialogDescription>
+              </div>
+            </DialogHeader>
+
+            <form onSubmit={handleCreateFinanceEntry} className="space-y-4 px-6 py-5">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-2">
+                  <Label>Tipo</Label>
+                  <Select value={newFinanceEntry.type} onValueChange={(value) => setNewFinanceEntry({ ...newFinanceEntry, type: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <SelectItem value="RECEIVABLE">A receber</SelectItem>
+                      <SelectItem value="PAYABLE">A pagar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Status</Label>
+                  <Select value={newFinanceEntry.status} onValueChange={(value) => setNewFinanceEntry({ ...newFinanceEntry, status: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <SelectItem value="PENDING">Pendente</SelectItem>
+                      <SelectItem value="PARTIAL">Parcial</SelectItem>
+                      <SelectItem value="PAID">Pago</SelectItem>
+                      <SelectItem value="CANCELED">Cancelado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Cliente</Label>
+                  <Select value={newFinanceEntry.clientId} onValueChange={(value) => setNewFinanceEntry({ ...newFinanceEntry, clientId: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Opcional" /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Título</Label>
+                  <Input className="rounded-xl" value={newFinanceEntry.title} onChange={(e) => setNewFinanceEntry({ ...newFinanceEntry, title: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Categoria</Label>
+                  <Input className="rounded-xl" value={newFinanceEntry.category} onChange={(e) => setNewFinanceEntry({ ...newFinanceEntry, category: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Valor total</Label>
+                  <Input type="number" min="0" step="0.01" className="rounded-xl" value={newFinanceEntry.amount} onChange={(e) => setNewFinanceEntry({ ...newFinanceEntry, amount: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Valor pago/recebido</Label>
+                  <Input type="number" min="0" step="0.01" className="rounded-xl" value={newFinanceEntry.amountPaid} onChange={(e) => setNewFinanceEntry({ ...newFinanceEntry, amountPaid: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-2">
+                  <Label>Vencimento</Label>
+                  <Input type="date" className="rounded-xl" value={newFinanceEntry.dueDate} onChange={(e) => setNewFinanceEntry({ ...newFinanceEntry, dueDate: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Pagamento</Label>
+                  <Input type="date" className="rounded-xl" value={newFinanceEntry.paymentDate} onChange={(e) => setNewFinanceEntry({ ...newFinanceEntry, paymentDate: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Referência</Label>
+                  <Input className="rounded-xl" value={newFinanceEntry.referenceCode} onChange={(e) => setNewFinanceEntry({ ...newFinanceEntry, referenceCode: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Descrição</Label>
+                <Input className="rounded-xl" value={newFinanceEntry.description} onChange={(e) => setNewFinanceEntry({ ...newFinanceEntry, description: e.target.value })} />
+              </div>
+
+              <DialogFooter className="border-t border-slate-100 pt-4">
+                <Button type="submit" className="w-full rounded-xl font-semibold" disabled={creatingFinanceEntry}>
+                  {creatingFinanceEntry ? 'Salvando...' : 'Salvar lançamento'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isEditFinanceDialogOpen} onOpenChange={setIsEditFinanceDialogOpen}>
+          <DialogContent className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-0 shadow-lg sm:max-w-[700px]">
+            <DialogHeader>
+              <div className="border-b border-slate-100 px-6 py-5">
+                <DialogTitle className="text-xl font-semibold text-slate-900">Editar Lançamento</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-slate-500">
+                  Atualize os dados da conta para manter o financeiro em dia.
+                </DialogDescription>
+              </div>
+            </DialogHeader>
+
+            {editingFinanceEntry && (
+              <form onSubmit={handleUpdateFinanceEntry} className="space-y-4 px-6 py-5">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-2">
+                    <Label>Tipo</Label>
+                    <Select value={editingFinanceEntry.type} onValueChange={(value) => setEditingFinanceEntry({ ...editingFinanceEntry, type: value })}>
+                      <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                      <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                        <SelectItem value="RECEIVABLE">A receber</SelectItem>
+                        <SelectItem value="PAYABLE">A pagar</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Status</Label>
+                    <Select value={editingFinanceEntry.status} onValueChange={(value) => setEditingFinanceEntry({ ...editingFinanceEntry, status: value })}>
+                      <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                      <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                        <SelectItem value="PENDING">Pendente</SelectItem>
+                        <SelectItem value="PARTIAL">Parcial</SelectItem>
+                        <SelectItem value="PAID">Pago</SelectItem>
+                        <SelectItem value="CANCELED">Cancelado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Cliente</Label>
+                    <Select value={editingFinanceEntry.clientId || ""} onValueChange={(value) => setEditingFinanceEntry({ ...editingFinanceEntry, clientId: value })}>
+                      <SelectTrigger className="rounded-xl"><SelectValue placeholder="Opcional" /></SelectTrigger>
+                      <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                        {clients.map((client) => (
+                          <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label>Título</Label>
+                    <Input className="rounded-xl" value={editingFinanceEntry.title || ""} onChange={(e) => setEditingFinanceEntry({ ...editingFinanceEntry, title: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Categoria</Label>
+                    <Input className="rounded-xl" value={editingFinanceEntry.category || ""} onChange={(e) => setEditingFinanceEntry({ ...editingFinanceEntry, category: e.target.value })} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label>Valor total</Label>
+                    <Input type="number" min="0" step="0.01" className="rounded-xl" value={editingFinanceEntry.amount || "0"} onChange={(e) => setEditingFinanceEntry({ ...editingFinanceEntry, amount: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Valor pago/recebido</Label>
+                    <Input type="number" min="0" step="0.01" className="rounded-xl" value={editingFinanceEntry.amountPaid || "0"} onChange={(e) => setEditingFinanceEntry({ ...editingFinanceEntry, amountPaid: e.target.value })} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-2">
+                    <Label>Vencimento</Label>
+                    <Input type="date" className="rounded-xl" value={editingFinanceEntry.dueDate || ""} onChange={(e) => setEditingFinanceEntry({ ...editingFinanceEntry, dueDate: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Pagamento</Label>
+                    <Input type="date" className="rounded-xl" value={editingFinanceEntry.paymentDate || ""} onChange={(e) => setEditingFinanceEntry({ ...editingFinanceEntry, paymentDate: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Referência</Label>
+                    <Input className="rounded-xl" value={editingFinanceEntry.referenceCode || ""} onChange={(e) => setEditingFinanceEntry({ ...editingFinanceEntry, referenceCode: e.target.value })} />
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label>Descrição</Label>
+                  <Input className="rounded-xl" value={editingFinanceEntry.description || ""} onChange={(e) => setEditingFinanceEntry({ ...editingFinanceEntry, description: e.target.value })} />
+                </div>
+
+                <DialogFooter className="border-t border-slate-100 pt-4">
+                  <Button type="submit" className="w-full rounded-xl font-semibold" disabled={updatingFinanceEntry}>
+                    {updatingFinanceEntry ? 'Salvando...' : 'Salvar alterações'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isCreateBillingDialogOpen} onOpenChange={setIsCreateBillingDialogOpen}>
+          <DialogContent className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-0 shadow-lg sm:max-w-[760px]">
+            <DialogHeader>
+              <div className="border-b border-slate-100 px-6 py-5">
+                <DialogTitle className="text-xl font-semibold text-slate-900">Nova Fatura</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-slate-500">
+                  Emita uma fatura com cliente, valores e vencimento.
+                </DialogDescription>
+              </div>
+            </DialogHeader>
+
+            <form onSubmit={handleCreateBilling} className="space-y-4 px-6 py-5">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-2 md:col-span-2">
+                  <Label>Título</Label>
+                  <Input className="rounded-xl" value={newBilling.title} onChange={(e) => setNewBilling({ ...newBilling, title: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Status</Label>
+                  <Select value={newBilling.status} onValueChange={(value) => setNewBilling({ ...newBilling, status: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <SelectItem value="DRAFT">Rascunho</SelectItem>
+                      <SelectItem value="ISSUED">Emitida</SelectItem>
+                      <SelectItem value="PARTIAL">Parcial</SelectItem>
+                      <SelectItem value="PAID">Paga</SelectItem>
+                      <SelectItem value="CANCELED">Cancelada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-2">
+                  <Label>Cliente</Label>
+                  <Select value={newBilling.clientId} onValueChange={(value) => setNewBilling({ ...newBilling, clientId: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Emissão</Label>
+                  <Input type="date" className="rounded-xl" value={newBilling.issueDate} onChange={(e) => setNewBilling({ ...newBilling, issueDate: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Vencimento</Label>
+                  <Input type="date" className="rounded-xl" value={newBilling.dueDate} onChange={(e) => setNewBilling({ ...newBilling, dueDate: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-2 md:col-span-2">
+                  <Label>Descrição do item</Label>
+                  <Input className="rounded-xl" value={newBilling.itemDescription} onChange={(e) => setNewBilling({ ...newBilling, itemDescription: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Quantidade</Label>
+                  <Input type="number" min="0.0001" step="0.0001" className="rounded-xl" value={newBilling.quantity} onChange={(e) => setNewBilling({ ...newBilling, quantity: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-4">
+                <div className="grid gap-2">
+                  <Label>Valor unitário</Label>
+                  <Input type="number" min="0" step="0.01" className="rounded-xl" value={newBilling.unitPrice} onChange={(e) => setNewBilling({ ...newBilling, unitPrice: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Desconto</Label>
+                  <Input type="number" min="0" step="0.01" className="rounded-xl" value={newBilling.discount} onChange={(e) => setNewBilling({ ...newBilling, discount: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Taxas</Label>
+                  <Input type="number" min="0" step="0.01" className="rounded-xl" value={newBilling.tax} onChange={(e) => setNewBilling({ ...newBilling, tax: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Valor pago</Label>
+                  <Input type="number" min="0" step="0.01" className="rounded-xl" value={newBilling.paidAmount} onChange={(e) => setNewBilling({ ...newBilling, paidAmount: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-2">
+                  <Label>Método de pagamento</Label>
+                  <Input className="rounded-xl" value={newBilling.paymentMethod} onChange={(e) => setNewBilling({ ...newBilling, paymentMethod: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Referência</Label>
+                  <Input className="rounded-xl" value={newBilling.referenceCode} onChange={(e) => setNewBilling({ ...newBilling, referenceCode: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Período inicial</Label>
+                  <Input type="date" className="rounded-xl" value={newBilling.servicePeriodStart} onChange={(e) => setNewBilling({ ...newBilling, servicePeriodStart: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Período final</Label>
+                  <Input type="date" className="rounded-xl" value={newBilling.servicePeriodEnd} onChange={(e) => setNewBilling({ ...newBilling, servicePeriodEnd: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Observações</Label>
+                  <Input className="rounded-xl" value={newBilling.notes} onChange={(e) => setNewBilling({ ...newBilling, notes: e.target.value })} />
+                </div>
+              </div>
+
+              <DialogFooter className="border-t border-slate-100 pt-4">
+                <Button type="submit" className="w-full rounded-xl font-semibold" disabled={creatingBilling}>
+                  {creatingBilling ? 'Salvando...' : 'Emitir fatura'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isEditBillingDialogOpen} onOpenChange={setIsEditBillingDialogOpen}>
+          <DialogContent className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-0 shadow-lg sm:max-w-[760px]">
+            <DialogHeader>
+              <div className="border-b border-slate-100 px-6 py-5">
+                <DialogTitle className="text-xl font-semibold text-slate-900">Editar Fatura</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-slate-500">
+                  Atualize valores, status e vencimento da fatura.
+                </DialogDescription>
+              </div>
+            </DialogHeader>
+
+            {editingBilling && (
+              <form onSubmit={handleUpdateBilling} className="space-y-4 px-6 py-5">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-2 md:col-span-2">
+                    <Label>Título</Label>
+                    <Input className="rounded-xl" value={editingBilling.title || ''} onChange={(e) => setEditingBilling({ ...editingBilling, title: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Status</Label>
+                    <Select value={editingBilling.status} onValueChange={(value) => setEditingBilling({ ...editingBilling, status: value })}>
+                      <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                      <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                        <SelectItem value="DRAFT">Rascunho</SelectItem>
+                        <SelectItem value="ISSUED">Emitida</SelectItem>
+                        <SelectItem value="PARTIAL">Parcial</SelectItem>
+                        <SelectItem value="PAID">Paga</SelectItem>
+                        <SelectItem value="CANCELED">Cancelada</SelectItem>
+                        <SelectItem value="OVERDUE">Atrasada</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-2">
+                    <Label>Cliente</Label>
+                    <Select value={editingBilling.clientId || ''} onValueChange={(value) => setEditingBilling({ ...editingBilling, clientId: value })}>
+                      <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                        {clients.map((client) => (
+                          <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Emissão</Label>
+                    <Input type="date" className="rounded-xl" value={editingBilling.issueDate || ''} onChange={(e) => setEditingBilling({ ...editingBilling, issueDate: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Vencimento</Label>
+                    <Input type="date" className="rounded-xl" value={editingBilling.dueDate || ''} onChange={(e) => setEditingBilling({ ...editingBilling, dueDate: e.target.value })} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-2 md:col-span-2">
+                    <Label>Descrição do item</Label>
+                    <Input className="rounded-xl" value={editingBilling.itemDescription || ''} onChange={(e) => setEditingBilling({ ...editingBilling, itemDescription: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Quantidade</Label>
+                    <Input type="number" min="0.0001" step="0.0001" className="rounded-xl" value={editingBilling.quantity || '1'} onChange={(e) => setEditingBilling({ ...editingBilling, quantity: e.target.value })} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-4">
+                  <div className="grid gap-2">
+                    <Label>Valor unitário</Label>
+                    <Input type="number" min="0" step="0.01" className="rounded-xl" value={editingBilling.unitPrice || '0'} onChange={(e) => setEditingBilling({ ...editingBilling, unitPrice: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Desconto</Label>
+                    <Input type="number" min="0" step="0.01" className="rounded-xl" value={editingBilling.discount || '0'} onChange={(e) => setEditingBilling({ ...editingBilling, discount: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Taxas</Label>
+                    <Input type="number" min="0" step="0.01" className="rounded-xl" value={editingBilling.tax || '0'} onChange={(e) => setEditingBilling({ ...editingBilling, tax: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Valor pago</Label>
+                    <Input type="number" min="0" step="0.01" className="rounded-xl" value={editingBilling.paidAmount || '0'} onChange={(e) => setEditingBilling({ ...editingBilling, paidAmount: e.target.value })} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-2">
+                    <Label>Método de pagamento</Label>
+                    <Input className="rounded-xl" value={editingBilling.paymentMethod || ''} onChange={(e) => setEditingBilling({ ...editingBilling, paymentMethod: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Referência</Label>
+                    <Input className="rounded-xl" value={editingBilling.referenceCode || ''} onChange={(e) => setEditingBilling({ ...editingBilling, referenceCode: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Período inicial</Label>
+                    <Input type="date" className="rounded-xl" value={editingBilling.servicePeriodStart || ''} onChange={(e) => setEditingBilling({ ...editingBilling, servicePeriodStart: e.target.value })} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label>Período final</Label>
+                    <Input type="date" className="rounded-xl" value={editingBilling.servicePeriodEnd || ''} onChange={(e) => setEditingBilling({ ...editingBilling, servicePeriodEnd: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Observações</Label>
+                    <Input className="rounded-xl" value={editingBilling.notes || ''} onChange={(e) => setEditingBilling({ ...editingBilling, notes: e.target.value })} />
+                  </div>
+                </div>
+
+                <DialogFooter className="border-t border-slate-100 pt-4">
+                  <Button type="submit" className="w-full rounded-xl font-semibold" disabled={updatingBilling}>
+                    {updatingBilling ? 'Salvando...' : 'Salvar alterações'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            )}
           </DialogContent>
         </Dialog>
 

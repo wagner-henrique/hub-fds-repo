@@ -66,6 +66,27 @@ enum ContractType {
   GENERATED
 }
 
+enum FinancialEntryType {
+  PAYABLE
+  RECEIVABLE
+}
+
+enum FinancialEntryStatus {
+  PENDING
+  PARTIAL
+  PAID
+  CANCELED
+}
+
+enum BillingStatus {
+  DRAFT
+  ISSUED
+  PARTIAL
+  PAID
+  CANCELED
+  OVERDUE
+}
+
 model Booking {
   id        String        @id @default(cuid())
   name      String
@@ -139,6 +160,8 @@ model Client {
   tasks    CrmTask[]
   activities CrmActivity[]
   contracts Contract[]
+  financialEntries FinancialEntry[]
+  invoices Invoice[]
 
   @@index([name])
   @@index([email])
@@ -163,6 +186,62 @@ model Contract {
 
   @@index([clientId])
   @@index([type])
+  @@index([createdAt])
+}
+
+model FinancialEntry {
+  id            String               @id @default(cuid())
+  type          FinancialEntryType
+  status        FinancialEntryStatus @default(PENDING)
+  title         String
+  description   String?
+  category      String?
+  amount        Float
+  amountPaid    Float                @default(0)
+  dueDate       DateTime
+  paymentDate   DateTime?
+  referenceCode String?
+  clientId      String?
+  createdBy     String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  client Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([type, status])
+  @@index([dueDate])
+  @@index([paymentDate])
+  @@index([clientId])
+}
+
+model Invoice {
+  id                 String        @id @default(cuid())
+  number             String        @unique
+  status             BillingStatus @default(DRAFT)
+  title              String
+  clientId           String
+  issueDate          DateTime
+  dueDate            DateTime
+  servicePeriodStart DateTime?
+  servicePeriodEnd   DateTime?
+  items              Json
+  subtotal           Float
+  discount           Float         @default(0)
+  tax                Float         @default(0)
+  total              Float
+  paidAmount         Float         @default(0)
+  balance            Float
+  paymentMethod      String?
+  referenceCode      String?
+  notes              String?
+  createdBy          String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([status, dueDate])
+  @@index([clientId, issueDate])
   @@index([createdAt])
 }
 
