@@ -12,37 +12,37 @@ type SpacesProps = {
 
 const Spaces = ({ spaces }: SpacesProps) => {
   return (
-    <section id="espacos" className="py-24 bg-white">
-      <div className="container mx-auto px-6">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold mb-4">Nossos Espaços</h2>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
+    <section id="espacos" className="bg-white py-16 md:py-24">
+      <div className="container mx-auto px-4 sm:px-6">
+        <div className="mb-12 text-center sm:mb-16">
+          <h2 className="mb-4 text-3xl font-bold sm:text-4xl">Nossos Espaços</h2>
+          <p className="mx-auto max-w-2xl text-sm text-muted-foreground sm:text-base">
             Infraestrutura completa pensada para produtividade e conforto. Escolha o ambiente que melhor se adapta à sua necessidade.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {spaces.map((space, index) => (
             <motion.div
               key={index}
               whileHover={{ y: -10 }}
-              className="group bg-secondary/30 rounded-[2rem] overflow-hidden border border-primary/5 hover:border-primary/20 transition-all"
+              className="group flex h-full flex-col overflow-hidden rounded-[2rem] border border-primary/5 bg-secondary/30 transition-all hover:border-primary/20"
             >
-              <div className="relative h-64 overflow-hidden">
+              <div className="relative h-52 overflow-hidden sm:h-64">
                 <img 
                   src={space.image} 
                   alt={space.title} 
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                 />
-                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-primary">
+                <div className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-primary backdrop-blur">
                   Disponível
                 </div>
               </div>
-              <div className="p-8">
-                <h3 className="text-xl font-bold mb-2">{space.title}</h3>
-                <p className="text-sm text-muted-foreground mb-6">{space.description}</p>
+              <div className="flex flex-1 flex-col p-6 sm:p-8">
+                <h3 className="mb-2 text-lg font-bold sm:text-xl">{space.title}</h3>
+                <p className="mb-5 text-sm text-muted-foreground sm:mb-6">{space.description}</p>
                 
-                <div className="flex items-center gap-4 mb-6 text-sm font-medium">
+                <div className="mb-5 flex flex-col gap-3 text-sm font-medium sm:mb-6 sm:flex-row sm:items-center sm:gap-4">
                   <div className="flex items-center gap-1">
                     <Users size={16} className="text-primary" />
                     {space.capacity}
@@ -53,7 +53,7 @@ const Spaces = ({ spaces }: SpacesProps) => {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2 mb-8">
+                <div className="mb-6 flex flex-wrap gap-2 sm:mb-8">
                   {space.features.map((f, i) => (
                     <span key={i} className="text-[10px] uppercase tracking-wider font-bold bg-white px-2 py-1 rounded-md border border-primary/10">
                       {f}
@@ -61,7 +61,7 @@ const Spaces = ({ spaces }: SpacesProps) => {
                   ))}
                 </div>
 
-                <button className="w-full py-3 rounded-xl bg-white border border-primary/20 text-primary font-bold hover:bg-primary hover:text-white transition-all">
+                <button className="mt-auto w-full rounded-xl border border-primary/20 bg-white py-3 font-bold text-primary transition-all hover:bg-primary hover:text-white">
                   Ver Disponibilidade
                 </button>
               </div>

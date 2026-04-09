@@ -378,10 +378,10 @@ const validateSchedule = () => {
   }
 
   return (
-    <div className="space-y-8 py-4">
+    <div className="space-y-6 py-4 sm:space-y-8">
       <div className="space-y-2">
         <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Escolha o Espaço</label>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
           {rooms.map((room) => {
             const Icon = room.icon
             return (
@@ -402,7 +402,7 @@ const validateSchedule = () => {
         </div>
       </div>
 
-      <div className={`grid md:grid-cols-2 gap-8 transition-opacity duration-300 ${selectedRoom === 'coworking' ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+      <div className={`grid gap-6 transition-opacity duration-300 md:grid-cols-2 md:gap-8 ${selectedRoom === 'coworking' ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
         <div className="space-y-3">
           <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Data</label>
           <Calendar 
@@ -410,12 +410,12 @@ const validateSchedule = () => {
             selected={date} 
             onSelect={setDate}
             disabled={(currDate) => currDate < new Date(new Date().setHours(0, 0, 0, 0))}
-            className="rounded-2xl border border-secondary/50 p-3 shadow-sm scale-90 origin-top-left" 
+            className="origin-top-left rounded-2xl border border-secondary/50 p-3 shadow-sm scale-95 sm:scale-90" 
           />
         </div>
         <div className="space-y-3">
           <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Horário</label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-2">
             {timeSlots.map((slot) => {
               const isBooked = bookedSlots.includes(slot)
               const isSelected = selectedSlots.includes(slot)
@@ -458,7 +458,7 @@ const validateSchedule = () => {
             <Button variant="outline" onClick={() => setStep('schedule')}>Alterar data/horário</Button>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Nome</label>
               <div className="relative">
@@ -501,7 +501,7 @@ const validateSchedule = () => {
 
           <div className="space-y-2">
             <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Como deseja pagar?</label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <button
                 onClick={() => {
                   setPaymentMethod('card')
@@ -536,7 +536,7 @@ const validateSchedule = () => {
           </div>
 
           {paymentMethod === 'card' && (
-            <div className="rounded-2xl border border-secondary/50 p-4 bg-white">
+            <div className="rounded-2xl border border-secondary/50 bg-white p-3 sm:p-4">
               {mpPublicKey ? (
                 <CardPayment
                   initialization={{
@@ -566,7 +566,7 @@ const validateSchedule = () => {
                 <img
                   src={`data:image/png;base64,${pixData.qrCodeBase64}`}
                   alt="QR Code Pix"
-                  className="w-48 h-48 mx-auto"
+                  className="h-40 w-40 mx-auto sm:h-48 sm:w-48"
                 />
               )}
               {pixData.qrCode && (
@@ -613,7 +613,7 @@ const validateSchedule = () => {
           loading ||
           (selectedRoom !== 'coworking' && step === 'details' && paymentMethod === 'card')
         }
-        className={`w-full py-7 rounded-2xl text-base font-bold shadow-xl gap-2 transition-all ${
+        className={`w-full rounded-2xl py-6 text-base font-bold shadow-xl gap-2 transition-all sm:py-7 ${
           selectedRoom === 'coworking' 
             ? 'bg-green-500 hover:bg-green-600 shadow-green-500/20 text-white' 
             : 'shadow-primary/20'

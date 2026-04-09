@@ -8,34 +8,34 @@ import { motion } from 'framer-motion';
 
 const BookingSystem = () => {
   return (
-    <section id="reserva" className="py-24 bg-white">
-      <div className="container mx-auto px-6">
+    <section id="reserva" className="bg-white py-16 md:py-24">
+      <div className="container mx-auto px-4 sm:px-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="max-w-5xl mx-auto bg-primary rounded-[3.5rem] p-12 md:p-20 text-white relative overflow-hidden shadow-2xl shadow-primary/20"
+          className="relative mx-auto max-w-5xl overflow-hidden rounded-[2.5rem] bg-primary p-6 text-white shadow-2xl shadow-primary/20 sm:p-8 md:rounded-[3.5rem] md:p-12 lg:p-20"
         >
           {/* Elementos Decorativos */}
-          <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -mr-48 -mt-48 blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full -ml-32 -mb-32 blur-2xl" />
+          <div className="absolute right-0 top-0 h-64 w-64 -mr-32 -mt-32 rounded-full bg-white/10 blur-3xl md:h-96 md:w-96 md:-mr-48 md:-mt-48" />
+          <div className="absolute bottom-0 left-0 h-40 w-40 -mb-20 -ml-20 rounded-full bg-black/10 blur-2xl md:h-64 md:w-64 md:-mb-32 md:-ml-32" />
           
-          <div className="relative z-10 grid md:grid-cols-2 gap-12 items-center">
+          <div className="relative z-10 grid gap-10 md:grid-cols-2 md:items-center md:gap-12">
             <div>
               <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-2 rounded-full text-sm font-bold mb-6 border border-white/10">
                 <Sparkles size={16} />
                 Vagas Limitadas
               </div>
-              <h2 className="text-4xl md:text-6xl font-black mb-6 leading-tight">
+              <h2 className="mb-5 text-3xl font-black leading-tight sm:text-4xl md:mb-6 md:text-6xl">
                 Pronto para o <br />próximo nível?
               </h2>
-              <p className="text-xl text-primary-foreground/80 mb-10 leading-relaxed">
+              <p className="mb-8 text-base leading-relaxed text-primary-foreground/80 sm:text-lg md:mb-10 md:text-xl">
                 Agende uma visita guiada e descubra como o HUB FDS pode acelerar o seu crescimento e da sua empresa.
               </p>
               
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row">
                 <BookingDialog>
-                  <Button size="lg" className="bg-white text-primary hover:bg-secondary py-8 px-10 rounded-2xl text-lg font-bold gap-3 shadow-xl">
+                  <Button size="lg" className="w-full gap-3 rounded-2xl bg-white px-8 py-6 text-base font-bold text-primary shadow-xl hover:bg-secondary sm:w-auto sm:px-10 sm:py-8 sm:text-lg">
                     Agendar Agora <CalendarIcon size={20} />
                   </Button>
                 </BookingDialog>

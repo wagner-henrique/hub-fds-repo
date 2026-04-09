@@ -11,7 +11,7 @@ import Link from 'next/link'
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-background selection:bg-primary selection:text-white">
+    <div className="min-h-screen overflow-x-hidden bg-background selection:bg-primary selection:text-white">
       <Navbar />
       
       <main>
@@ -30,11 +30,11 @@ export default function Home() {
         </ScrollReveal>
       </main>
 
-      <footer className="py-16 border-t border-primary/10 bg-white">
-        <div className="container mx-auto px-6">
-          <div className="grid md:grid-cols-4 gap-12 mb-12">
-            <div className="col-span-2">
-              <div className="flex items-center gap-3 mb-6">
+      <footer className="border-t border-primary/10 bg-white py-16">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="mb-12 grid gap-10 md:grid-cols-2 lg:grid-cols-4">
+            <div className="lg:col-span-2">
+              <div className="mb-6 flex items-center gap-3">
                 <Image 
                   src="/logo.png" 
                   alt="HUB FDS" 
@@ -42,14 +42,14 @@ export default function Home() {
                   height={40} 
                   className="rounded-full"
                 />
-                <span className="font-bold text-2xl text-primary tracking-tighter">HUB FDS</span>
+                <span className="text-2xl font-bold tracking-tighter text-primary">HUB FDS</span>
               </div>
-              <p className="text-muted-foreground max-w-sm leading-relaxed">
+              <p className="max-w-sm leading-relaxed text-muted-foreground">
                 O maior centro de inovação e tecnologia de Arapiraca. Criando o futuro, um sonho de cada vez.
               </p>
             </div>
             <div>
-              <h4 className="font-bold mb-6">Links Rápidos</h4>
+              <h4 className="mb-6 font-bold">Links Rápidos</h4>
               <ul className="space-y-4 text-sm text-muted-foreground">
                 <li><Link href="/" className="hover:text-primary transition-colors">Início</Link></li>
                 <li><Link href="#espacos" className="hover:text-primary transition-colors">Espaços</Link></li>
@@ -58,7 +58,7 @@ export default function Home() {
               </ul>
             </div>
             <div>
-              <h4 className="font-bold mb-6">Social</h4>
+              <h4 className="mb-6 font-bold">Social</h4>
               <ul className="space-y-4 text-sm text-muted-foreground">
                 <li><a href="https://www.instagram.com/hubfds.br/" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Instagram</a></li>
                 <li><a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">LinkedIn</a></li>
@@ -67,11 +67,11 @@ export default function Home() {
             </div>
           </div>
           
-          <div className="pt-8 border-t border-primary/5 flex flex-col md:flex-row justify-between items-center gap-6">
-            <p className="text-sm text-muted-foreground">
+          <div className="flex flex-col items-start gap-4 border-t border-primary/5 pt-8 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between md:gap-6">
+            <p>
               © {new Date().getFullYear()} HUB FDS - Fábrica de Sonhos. Todos os direitos reservados.
             </p>
-            <div className="flex gap-8 text-sm text-muted-foreground">
+            <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-muted-foreground">
               <Link href="/privacidade" className="hover:text-primary transition-colors">Privacidade</Link>
               <Link href="/termos" className="hover:text-primary transition-colors">Termos de Uso</Link>
             </div>
