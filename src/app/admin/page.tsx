@@ -632,6 +632,31 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
     });
   };
 
+  const digitsOnly = (value?: string | null) => (value || '').replace(/\D/g, '');
+  const normalizeOptionalField = (value?: string | null) => {
+    const trimmed = (value || '').trim();
+    return trimmed.length > 0 ? trimmed : null;
+  };
+
+  const buildClientPayload = (input: any) => {
+    const isPf = input.type === 'PF';
+    const cpfDigits = digitsOnly(input.cpf);
+    const cnpjDigits = digitsOnly(input.cnpj);
+
+    return {
+      name: (input.name || '').trim(),
+      type: input.type,
+      email: (input.email || '').trim(),
+      phone: digitsOnly(input.phone),
+      whatsapp: normalizeOptionalField(input.whatsapp) ? digitsOnly(input.whatsapp) : null,
+      cpf: isPf ? (cpfDigits || null) : null,
+      cnpj: isPf ? null : (cnpjDigits || null),
+      birthDate: normalizeOptionalField(input.birthDate),
+      address: normalizeOptionalField(input.address),
+      notes: normalizeOptionalField(input.notes),
+    };
+  };
+
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -640,12 +665,24 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
       return;
     }
 
+    if (newClient.type === 'PF' && digitsOnly(newClient.cpf).length !== 11) {
+      showError('Informe um CPF válido com 11 dígitos.');
+      return;
+    }
+
+    if (newClient.type === 'PJ' && digitsOnly(newClient.cnpj).length !== 14) {
+      showError('Informe um CNPJ válido com 14 dígitos.');
+      return;
+    }
+
+    const payload = buildClientPayload(newClient);
+
     setCreatingClient(true);
     try {
       const response = await fetch('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newClient),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
@@ -672,12 +709,24 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
       return;
     }
 
+    if (editingClient.type === 'PF' && digitsOnly(editingClient.cpf).length !== 11) {
+      showError('Informe um CPF válido com 11 dígitos.');
+      return;
+    }
+
+    if (editingClient.type === 'PJ' && digitsOnly(editingClient.cnpj).length !== 14) {
+      showError('Informe um CNPJ válido com 14 dígitos.');
+      return;
+    }
+
+    const payload = buildClientPayload(editingClient);
+
     setUpdatingClient(true);
     try {
       const response = await fetch(`/api/clients/${editingClient.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingClient),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();

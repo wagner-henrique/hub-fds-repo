@@ -21,10 +21,12 @@ export async function POST(request: Request) {
     const expectedSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET
     const providedSecret = request.headers.get("x-webhook-secret") || url.searchParams.get("secret")
 
-    if (expectedSecret) {
-      if (!providedSecret || !safeEqual(expectedSecret, providedSecret)) {
-        return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
-      }
+    if (!expectedSecret) {
+      return NextResponse.json({ error: "Webhook não configurado" }, { status: 503 })
+    }
+
+    if (!providedSecret || !safeEqual(expectedSecret, providedSecret)) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
     const payload = await request.json().catch(() => ({}))

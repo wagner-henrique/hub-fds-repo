@@ -5,6 +5,16 @@ import { prisma } from "@/lib/prisma"
 import { requireRole, requireSession } from "@/lib/auth-guards"
 import { contractGenerateSchema, paginationSchema } from "@/lib/validations"
 
+const MAX_CONTRACT_FILE_BYTES = 10 * 1024 * 1024
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+
 const buildGeneratedContractHtml = (params: {
   contractTitle: string
   clientName: string
@@ -22,16 +32,21 @@ const buildGeneratedContractHtml = (params: {
 
   const start = new Date(params.startDate).toLocaleDateString("pt-BR")
   const end = new Date(params.endDate).toLocaleDateString("pt-BR")
+  const contractTitle = escapeHtml(params.contractTitle)
+  const clientName = escapeHtml(params.clientName)
+  const clientDocument = escapeHtml(params.clientDocument || "Não informado")
+  const serviceDescription = escapeHtml(params.serviceDescription)
+  const city = escapeHtml(params.city)
 
   return `
     <div style="max-width: 840px; margin: 0 auto; padding: 40px 28px; font-family: Georgia, 'Times New Roman', serif; color: #0f172a; line-height: 1.55;">
-      <h1 style="font-size: 24px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 0.08em;">${params.contractTitle}</h1>
+      <h1 style="font-size: 24px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 0.08em;">${contractTitle}</h1>
       <p>
-        <strong>Contratante:</strong> ${params.clientName}<br />
-        <strong>Documento:</strong> ${params.clientDocument || "Não informado"}
+        <strong>Contratante:</strong> ${clientName}<br />
+        <strong>Documento:</strong> ${clientDocument}
       </p>
       <p>
-        <strong>Objeto:</strong> ${params.serviceDescription}
+        <strong>Objeto:</strong> ${serviceDescription}
       </p>
       <p>
         <strong>Vigência:</strong> de ${start} até ${end}
@@ -42,7 +57,7 @@ const buildGeneratedContractHtml = (params: {
       <p style="margin-top: 28px;">
         As partes acordam com os termos aqui descritos, obrigando-se ao cumprimento integral das cláusulas contratuais.
       </p>
-      <p style="margin-top: 36px;">${params.city}, ${new Date().toLocaleDateString("pt-BR")}</p>
+      <p style="margin-top: 36px;">${city}, ${new Date().toLocaleDateString("pt-BR")}</p>
       <div style="margin-top: 64px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px;">
         <div style="text-align: center;">
           <div style="border-top: 1px solid #94a3b8; padding-top: 8px;">Contratante</div>
@@ -135,6 +150,10 @@ export async function POST(request: Request) {
 
       if (file.type !== "application/pdf") {
         return NextResponse.json({ error: "Envie um arquivo PDF válido" }, { status: 400 })
+      }
+
+      if (file.size > MAX_CONTRACT_FILE_BYTES) {
+        return NextResponse.json({ error: "O arquivo excede o limite de 10MB" }, { status: 413 })
       }
 
       const fileBuffer = Buffer.from(await file.arrayBuffer())

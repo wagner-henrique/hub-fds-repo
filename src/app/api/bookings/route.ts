@@ -79,19 +79,16 @@ export async function GET(request: Request) {
     const { page, limit } = paginationSchema.parse(queryParams)
     const listDate = searchParams.get("date")
     const listRoom = searchParams.get("room")
+    const listBookingDate = listDate ? parseBrazilOrIsoDateToUtc(listDate) : null
 
     const skip = (page - 1) * limit
 
+    if (listDate && !listBookingDate) {
+      return NextResponse.json({ error: "Data inválida" }, { status: 400 })
+    }
+
     const where = {
-      ...(listDate
-        ? (() => {
-            const bookingDate = parseBrazilOrIsoDateToUtc(listDate)
-            if (!bookingDate) {
-              throw new Error("INVALID_LIST_DATE")
-            }
-            return { date: bookingDate }
-          })()
-        : {}),
+      ...(listBookingDate ? { date: listBookingDate } : {}),
       ...(listRoom ? { room: listRoom } : {}),
     }
 
@@ -115,6 +112,9 @@ export async function GET(request: Request) {
       },
     })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: "Falha de validação", details: error.errors }, { status: 400 })
+    }
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
