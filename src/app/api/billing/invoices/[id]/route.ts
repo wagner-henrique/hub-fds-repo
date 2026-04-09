@@ -2,6 +2,7 @@ import { BillingStatus, Prisma } from "@prisma/client"
 import { NextResponse } from "next/server"
 
 import { requireRole } from "@/lib/auth-guards"
+import { generateInvoicePaymentCodes } from "@/lib/mercadopago"
 import { prisma } from "@/lib/prisma"
 import { billingInvoiceSchema } from "@/lib/validations"
 
@@ -69,6 +70,49 @@ export async function PATCH(
     const dueDate = new Date(parsed.dueDate)
     const status = toInvoiceStatus(parsed.status, paidAmount, parsed.total, dueDate)
 
+    const current = await prisma.invoice.findUnique({
+      where: { id },
+      select: { number: true },
+    })
+
+    if (!current) {
+      return NextResponse.json({ error: "Fatura não encontrada" }, { status: 404 })
+    }
+
+    const client = await prisma.client.findUnique({
+      where: { id: parsed.clientId },
+      select: { name: true, email: true, cpf: true, cnpj: true },
+    })
+
+    if (!client) {
+      return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 })
+    }
+
+    let pixCode = toOptional(parsed.pixCode)
+    let barcode = toOptional(parsed.barcode)
+
+    if ((!pixCode || !barcode) && parsed.total > 0) {
+      try {
+        const [firstName, ...rest] = (client.name || "").trim().split(" ")
+        const generated = await generateInvoicePaymentCodes({
+          amount: parsed.total,
+          description: parsed.title,
+          externalReference: current.number,
+          payerEmail: client.email,
+          payerFirstName: firstName || null,
+          payerLastName: rest.join(" ") || null,
+          payerDocumentType: client.cnpj ? "CNPJ" : "CPF",
+          payerDocumentNumber: client.cnpj || client.cpf || null,
+          paymentMethodHint: parsed.paymentMethod || null,
+        })
+
+        pixCode = pixCode || generated.pixCode
+        barcode = barcode || generated.barcode
+      } catch {
+        // Mantém fluxo sem bloquear atualização se o gateway falhar.
+      }
+    }
+
     const updated = await prisma.invoice.update({
       where: { id },
       data: {
@@ -88,6 +132,8 @@ export async function PATCH(
         balance: Math.max(parsed.total - paidAmount, 0),
         paymentMethod: toOptional(parsed.paymentMethod),
         referenceCode: toOptional(parsed.referenceCode),
+        pixCode,
+        barcode,
         notes: toOptional(parsed.notes),
       },
       include: {

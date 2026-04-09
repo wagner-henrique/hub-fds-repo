@@ -2,8 +2,16 @@ import { BillingStatus, Prisma } from "@prisma/client"
 import { NextResponse } from "next/server"
 
 import { requireRole, requireSession } from "@/lib/auth-guards"
+import { generateInvoicePaymentCodes } from "@/lib/mercadopago"
 import { prisma } from "@/lib/prisma"
 import { billingInvoiceSchema, paginationSchema } from "@/lib/validations"
+
+const mapZodIssues = (issues: Array<{ path?: Array<string | number>; message?: string }>) => {
+  return issues.map((issue) => ({
+    field: issue.path?.length ? String(issue.path[0]) : "form",
+    message: issue.message || "Valor inválido",
+  }))
+}
 
 const toOptional = (value?: string | null) => {
   if (!value) return null
@@ -69,6 +77,8 @@ export async function GET(request: Request) {
               { number: { contains: search, mode: "insensitive" } },
               { title: { contains: search, mode: "insensitive" } },
               { referenceCode: { contains: search, mode: "insensitive" } },
+              { pixCode: { contains: search, mode: "insensitive" } },
+              { barcode: { contains: search, mode: "insensitive" } },
               { client: { name: { contains: search, mode: "insensitive" } } },
             ],
           }
@@ -131,10 +141,45 @@ export async function POST(request: Request) {
     const paidAmount = parsed.paidAmount > parsed.total ? parsed.total : parsed.paidAmount
     const dueDate = new Date(parsed.dueDate)
     const status = toInvoiceStatus(parsed.status, paidAmount, parsed.total, dueDate)
+    const number = await getNextInvoiceNumber()
+
+    const client = await prisma.client.findUnique({
+      where: { id: parsed.clientId },
+      select: { name: true, email: true, cpf: true, cnpj: true },
+    })
+
+    if (!client) {
+      return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 })
+    }
+
+    let pixCode = toOptional(parsed.pixCode)
+    let barcode = toOptional(parsed.barcode)
+
+    if ((!pixCode || !barcode) && parsed.total > 0) {
+      try {
+        const [firstName, ...rest] = (client.name || "").trim().split(" ")
+        const generated = await generateInvoicePaymentCodes({
+          amount: parsed.total,
+          description: parsed.title,
+          externalReference: number,
+          payerEmail: client.email,
+          payerFirstName: firstName || null,
+          payerLastName: rest.join(" ") || null,
+          payerDocumentType: client.cnpj ? "CNPJ" : "CPF",
+          payerDocumentNumber: client.cnpj || client.cpf || null,
+          paymentMethodHint: parsed.paymentMethod || null,
+        })
+
+        pixCode = pixCode || generated.pixCode
+        barcode = barcode || generated.barcode
+      } catch {
+        // Mantém fluxo sem bloquear faturamento se o gateway falhar.
+      }
+    }
 
     const created = await prisma.invoice.create({
       data: {
-        number: await getNextInvoiceNumber(),
+        number,
         status,
         title: parsed.title,
         clientId: parsed.clientId,
@@ -151,6 +196,8 @@ export async function POST(request: Request) {
         balance: Math.max(parsed.total - paidAmount, 0),
         paymentMethod: toOptional(parsed.paymentMethod),
         referenceCode: toOptional(parsed.referenceCode),
+        pixCode,
+        barcode,
         notes: toOptional(parsed.notes),
         createdBy,
       },
@@ -162,7 +209,9 @@ export async function POST(request: Request) {
     return NextResponse.json(created, { status: 201 })
   } catch (error: any) {
     if (error?.name === "ZodError") {
-      return NextResponse.json({ error: "Falha de validação", details: error.errors }, { status: 400 })
+      const details = mapZodIssues(error.errors || [])
+      const firstMessage = details[0]?.message || "Falha de validação"
+      return NextResponse.json({ error: firstMessage, details }, { status: 400 })
     }
 
     if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2021" || error.code === "P2022")) {

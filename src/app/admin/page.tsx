@@ -10,7 +10,6 @@ import {
   Trash2,
   Edit3,
   Phone,
-  Clock,
   ChevronLeft,
   ChevronRight,
   Plus,
@@ -18,7 +17,8 @@ import {
   BriefcaseBusiness,
   ListTodo,
   MessageSquare,
-  CircleDollarSign
+  CircleDollarSign,
+  BarChart3
 } from 'lucide-react';
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -31,6 +31,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { showSuccess, showError } from '@/utils/toast';
 import { signOut } from 'next-auth/react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { DashboardTab } from "@/components/admin/tabs/DashboardTab";
+import { ReportsTab } from "@/components/admin/tabs/ReportsTab";
 
 const bookingStatusLabels: Record<string, string> = {
   PENDING: 'Pendente',
@@ -102,6 +104,7 @@ const adminTabs = [
   { id: 'clients', icon: Users, label: 'Clientes' },
   { id: 'finance', icon: CircleDollarSign, label: 'Financeiro' },
   { id: 'billing', icon: CircleDollarSign, label: 'Faturamento' },
+  { id: 'reports', icon: BarChart3, label: 'Relatórios' },
   { id: 'contracts', icon: BriefcaseBusiness, label: 'Contratos' },
   { id: 'crm', icon: BriefcaseBusiness, label: 'CRM' },
   { id: 'leads', icon: Users, label: 'Leads' },
@@ -143,6 +146,10 @@ const tabMeta: Record<string, { title: string; description: string }> = {
     title: 'Faturamento',
     description: 'Emissão e controle de faturas com saldo, vencimento e status.',
   },
+  reports: {
+    title: 'Relatórios ERP',
+    description: 'KPIs consolidados com gráficos de operação, comercial e financeiro.',
+  },
   contracts: {
     title: 'Contratos',
     description: 'Upload de PDFs e geração de contratos prontos para impressão.',
@@ -171,7 +178,7 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
 
   const [bookings, setBookings] = useState<any[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -324,6 +331,8 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
     paidAmount: "0",
     paymentMethod: "",
     referenceCode: "",
+    pixCode: "",
+    barcode: "",
     notes: "",
   });
   const [isUploadContractDialogOpen, setIsUploadContractDialogOpen] = useState(false);
@@ -440,8 +449,13 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
   };
 
   useEffect(() => {
-    fetchData(page);
-  }, [page]);
+    if (activeTab === 'dashboard' || activeTab === 'bookings' || activeTab === 'leads') {
+      fetchData(page);
+      return;
+    }
+
+    setLoading(false);
+  }, [page, activeTab]);
 
   useEffect(() => {
     if (window.innerWidth < 1024) {
@@ -1440,6 +1454,8 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
       paidAmount: Number(billing.paidAmount || 0),
       paymentMethod: billing.paymentMethod || null,
       referenceCode: billing.referenceCode || null,
+      pixCode: billing.pixCode || null,
+      barcode: billing.barcode || null,
       notes: billing.notes || null,
     }
   }
@@ -1448,6 +1464,39 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
     e.preventDefault()
     if (!newBilling.title || !newBilling.clientId || !newBilling.issueDate || !newBilling.dueDate) {
       showError('Preencha título, cliente, emissão e vencimento.')
+      return
+    }
+
+    const quantity = Number(newBilling.quantity || 0)
+    const unitPrice = Number(newBilling.unitPrice || 0)
+    const paidAmount = Number(newBilling.paidAmount || 0)
+    const discount = Number(newBilling.discount || 0)
+    const tax = Number(newBilling.tax || 0)
+    const subtotal = quantity * unitPrice
+    const total = Math.max(subtotal - discount + tax, 0)
+
+    if (!newBilling.itemDescription.trim()) {
+      showError('Informe a descrição do item da fatura.')
+      return
+    }
+
+    if (quantity <= 0) {
+      showError('Quantidade deve ser maior que zero.')
+      return
+    }
+
+    if (unitPrice < 0) {
+      showError('Valor unitário não pode ser negativo.')
+      return
+    }
+
+    if (new Date(newBilling.dueDate).getTime() < new Date(newBilling.issueDate).getTime()) {
+      showError('Vencimento deve ser igual ou maior que emissão.')
+      return
+    }
+
+    if (paidAmount > total) {
+      showError('Valor pago não pode ser maior que o total da fatura.')
       return
     }
 
@@ -1480,6 +1529,8 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
         paidAmount: '0',
         paymentMethod: '',
         referenceCode: '',
+        pixCode: '',
+        barcode: '',
         notes: '',
       })
       fetchBillingData()
@@ -1838,106 +1889,18 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
         )}
 
         {activeTab === "dashboard" && (
-          <>
-            <div className="mb-8 grid gap-4 md:grid-cols-3">
-              <Card className="rounded-3xl border border-slate-100 bg-white p-6 shadow-none">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Total de Reservas</p>
-                    <h3 className="text-4xl font-semibold text-slate-900">{bookings.length}</h3>
-                  </div>
-                  <div className="rounded-xl bg-primary/10 p-3 text-primary">
-                    <CalendarIcon size={24} />
-                  </div>
-                </div>
-                <p className="text-xs text-slate-400">Dados da página atual</p>
-              </Card>
-
-              <Card className="rounded-3xl border border-slate-100 bg-white p-6 shadow-none">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Novos Leads</p>
-                    <h3 className="text-4xl font-semibold text-slate-900">{leads.length}</h3>
-                  </div>
-                  <div className="rounded-xl bg-primary/10 p-3 text-primary">
-                    <Users size={24} />
-                  </div>
-                </div>
-                <p className="text-xs text-slate-400">Total captado</p>
-              </Card>
-
-              <Card className="rounded-3xl border border-slate-100 bg-white p-6 shadow-none">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Taxa de Conversão</p>
-                    <h3 className="text-4xl font-semibold text-slate-900">24%</h3>
-                  </div>
-                  <div className="rounded-xl bg-primary/10 p-3 text-primary">
-                    <Clock size={24} />
-                  </div>
-                </div>
-                <p className="text-xs text-slate-400">Média de fechamento</p>
-              </Card>
-            </div>
-
-            <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white">
-              <div className="border-b border-slate-100 p-6">
-                <h2 className="text-xl font-semibold text-slate-900">Agendamentos Recentes</h2>
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-none bg-slate-50/70">
-                    <TableHead className={`px-8 ${tableHeadBaseClass}`}>Cliente</TableHead>
-                    <TableHead className={tableHeadBaseClass}>Data</TableHead>
-                    <TableHead className={tableHeadBaseClass}>Horário</TableHead>
-                    <TableHead className={tableHeadBaseClass}>Status</TableHead>
-                    <TableHead className={`px-8 text-right ${tableHeadBaseClass}`}>Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bookings.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="py-20 text-center text-slate-400 font-medium">
-                        Nenhum agendamento encontrado.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    bookings.slice(0, 5).map((item: any) => (
-                      <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors border-slate-50">
-                        <TableCell className={`${tableCellBaseClass} px-8`}>
-                          <div className="font-bold text-slate-900">{item.name}</div>
-                          <div className="text-xs text-slate-400">{item.email}</div>
-                        </TableCell>
-                        <TableCell className={`${tableCellBaseClass} font-medium text-slate-600`}>
-                          {new Date(item.date).toLocaleDateString('pt-BR')}
-                        </TableCell>
-                        <TableCell className={`${tableCellBaseClass} font-bold text-primary`}>
-                          {item.time}
-                        </TableCell>
-                        <TableCell className={tableCellBaseClass}>
-                          <Badge className={`rounded-lg px-3 py-1 font-bold ${
-                            item.status === 'CONFIRMED' ? 'bg-primary' : item.status === 'CANCELLED' ? 'bg-red-500' : 'bg-amber-500'
-                          }`}>
-                            {bookingStatusLabels[item.status] || item.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className={`${tableCellBaseClass} px-8 text-right`}>
-                          <div className="flex justify-end gap-2">
-                            <Button size="icon" variant="ghost" onClick={() => { setEditingItem(item); setIsEditDialogOpen(true); }}>
-                              <Edit3 size={18} className="text-primary" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="text-red-500" onClick={() => handleDelete(item.id, 'bookings')}>
-                              <Trash2 size={18} />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </>
+          <DashboardTab
+            bookings={bookings}
+            leads={leads}
+            tableHeadBaseClass={tableHeadBaseClass}
+            tableCellBaseClass={tableCellBaseClass}
+            bookingStatusLabels={bookingStatusLabels}
+            onEditBooking={(item) => {
+              setEditingItem(item)
+              setIsEditDialogOpen(true)
+            }}
+            onDeleteBooking={(id) => handleDelete(id, 'bookings')}
+          />
         )}
 
         {(activeTab === "bookings" || activeTab === "leads") && (
@@ -2271,20 +2234,6 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                         <TableCell className={`${tableCellBaseClass} px-8 text-right`}>
                           <div className="flex justify-end gap-2">
                             <Button
-                              variant="outline"
-                              className="rounded-xl"
-                              onClick={() => window.open(`/admin/billing/print?id=${entry.id}`, '_blank')}
-                            >
-                              Imprimir
-                            </Button>
-                            <Button
-                              variant="outline"
-                              className="rounded-xl"
-                              onClick={() => window.open(`/api/billing/invoices/${entry.id}/pdf`, '_blank')}
-                            >
-                              PDF
-                            </Button>
-                            <Button
                               size="icon"
                               variant="ghost"
                               onClick={() => {
@@ -2432,6 +2381,20 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                         <TableCell className={`${tableCellBaseClass} px-8 text-right`}>
                           <div className="flex justify-end gap-2">
                             <Button
+                              variant="outline"
+                              className="rounded-xl"
+                              onClick={() => window.open(`/admin/billing/print?id=${invoice.id}`, '_blank')}
+                            >
+                              Imprimir
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="rounded-xl"
+                              onClick={() => window.open(`/api/billing/invoices/${invoice.id}/pdf`, '_blank')}
+                            >
+                              PDF
+                            </Button>
+                            <Button
                               size="icon"
                               variant="ghost"
                               onClick={() => {
@@ -2466,6 +2429,13 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
               </Table>
             </div>
           </div>
+        )}
+
+        {activeTab === "reports" && (
+          <ReportsTab
+            tableHeadBaseClass={tableHeadBaseClass}
+            tableCellBaseClass={tableCellBaseClass}
+          />
         )}
 
         {activeTab === "contracts" && (
@@ -3783,6 +3753,17 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="grid gap-2">
+                  <Label>PIX (copia e cola)</Label>
+                  <Input className="rounded-xl" value={newBilling.pixCode} onChange={(e) => setNewBilling({ ...newBilling, pixCode: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Código de barras</Label>
+                  <Input className="rounded-xl" value={newBilling.barcode} onChange={(e) => setNewBilling({ ...newBilling, barcode: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
                   <Label>Período final</Label>
                   <Input type="date" className="rounded-xl" value={newBilling.servicePeriodEnd} onChange={(e) => setNewBilling({ ...newBilling, servicePeriodEnd: e.target.value })} />
                 </div>
@@ -3899,6 +3880,17 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                   <div className="grid gap-2">
                     <Label>Período inicial</Label>
                     <Input type="date" className="rounded-xl" value={editingBilling.servicePeriodStart || ''} onChange={(e) => setEditingBilling({ ...editingBilling, servicePeriodStart: e.target.value })} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label>PIX (copia e cola)</Label>
+                    <Input className="rounded-xl" value={editingBilling.pixCode || ''} onChange={(e) => setEditingBilling({ ...editingBilling, pixCode: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Código de barras</Label>
+                    <Input className="rounded-xl" value={editingBilling.barcode || ''} onChange={(e) => setEditingBilling({ ...editingBilling, barcode: e.target.value })} />
                   </div>
                 </div>
 

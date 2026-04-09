@@ -233,6 +233,8 @@ model Invoice {
   balance            Float
   paymentMethod      String?
   referenceCode      String?
+  pixCode            String?
+  barcode            String?
   notes              String?
   createdBy          String?
   createdAt          DateTime      @default(now())

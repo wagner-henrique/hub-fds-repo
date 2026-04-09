@@ -194,6 +194,8 @@ export const billingInvoiceSchema = z
     paidAmount: z.coerce.number().min(0, { message: "Valor pago não pode ser negativo" }).default(0),
     paymentMethod: z.string().max(80, { message: "Método de pagamento não pode conter mais de 80 caracteres" }).optional().nullable(),
     referenceCode: z.string().max(80, { message: "Código de referência não pode conter mais de 80 caracteres" }).optional().nullable(),
+    pixCode: z.string().max(300, { message: "Código PIX não pode conter mais de 300 caracteres" }).optional().nullable(),
+    barcode: z.string().max(120, { message: "Código de barras não pode conter mais de 120 caracteres" }).optional().nullable(),
     notes: z.string().max(1200, { message: "Notas não podem conter mais de 1200 caracteres" }).optional().nullable(),
   })
   .refine((data) => data.dueDate >= data.issueDate, {

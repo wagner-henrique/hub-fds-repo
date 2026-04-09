@@ -107,6 +107,8 @@ export default function BillingPrintPage() {
               <p className="text-sm text-slate-700">Status: {invoice.status}</p>
               {invoice.referenceCode && <p className="text-sm text-slate-700">Referência: {invoice.referenceCode}</p>}
               {invoice.paymentMethod && <p className="text-sm text-slate-700">Forma de pagamento: {invoice.paymentMethod}</p>}
+              {invoice.pixCode && <p className="break-all text-xs text-slate-700">PIX copia e cola: {invoice.pixCode}</p>}
+              {invoice.barcode && <p className="break-all text-xs text-slate-700">Código de barras: {invoice.barcode}</p>}
             </div>
           </section>
 

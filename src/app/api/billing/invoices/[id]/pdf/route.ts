@@ -109,6 +109,14 @@ export async function GET(
       drawLine(page, `Documento: ${invoice.client.cpf || invoice.client.cnpj}`, 50, y)
       y -= 14
     }
+    if (invoice.pixCode) {
+      drawLine(page, `PIX: ${invoice.pixCode}`.slice(0, 120), 50, y)
+      y -= 14
+    }
+    if (invoice.barcode) {
+      drawLine(page, `Cod. barras: ${invoice.barcode}`.slice(0, 120), 50, y)
+      y -= 14
+    }
 
     y -= 12
 
@@ -160,7 +168,7 @@ export async function GET(
     return new Response(Buffer.from(pdfBytes), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename=\"${fileName}\"`,
+        "Content-Disposition": `attachment; filename="${fileName}"`,
         "Cache-Control": "no-store",
       },
     })
