@@ -5,6 +5,7 @@ export type LandingSpace = {
   capacity: string
   image: string
   features: string[]
+  pricing?: string[]
 }
 
 export type LandingTestimonial = {

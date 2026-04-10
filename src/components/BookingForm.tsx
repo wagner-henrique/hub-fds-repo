@@ -28,14 +28,15 @@ const rooms = [
 ]
 
 interface BookingFormProps {
+  initialRoomId?: string
   onSuccess?: () => void
 }
 
-export default function BookingForm({ onSuccess }: BookingFormProps) {
+export default function BookingForm({ initialRoomId, onSuccess }: BookingFormProps) {
   const [step, setStep] = useState<'schedule' | 'details'>('schedule')
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [selectedSlots, setSelectedSlots] = useState<string[]>([])
-  const [selectedRoom, setSelectedRoom] = useState<string>('reuniao')
+  const [selectedRoom, setSelectedRoom] = useState<string>(initialRoomId ?? 'reuniao')
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix'>('card')
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" })
   const [pixData, setPixData] = useState<{ qrCode?: string; qrCodeBase64?: string } | null>(null)

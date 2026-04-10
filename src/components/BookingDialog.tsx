@@ -13,9 +13,10 @@ import BookingForm from './BookingForm';
 
 interface BookingDialogProps {
   children: React.ReactNode;
+  initialRoomId?: string;
 }
 
-const BookingDialog = ({ children }: BookingDialogProps) => {
+const BookingDialog = ({ children, initialRoomId }: BookingDialogProps) => {
   const [open, setOpen] = React.useState(false);
 
   return (
@@ -30,7 +31,7 @@ const BookingDialog = ({ children }: BookingDialogProps) => {
             Escolha o melhor momento para conhecer o HUB FDS.
           </DialogDescription>
         </DialogHeader>
-        <BookingForm onSuccess={() => setOpen(false)} />
+        <BookingForm initialRoomId={initialRoomId} onSuccess={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
   );

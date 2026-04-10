@@ -55,7 +55,7 @@ const Contact = () => {
 
           <div className="h-[320px] overflow-hidden rounded-[2rem] border-4 border-secondary/30 shadow-2xl sm:h-[380px] sm:rounded-[3rem] sm:border-8 md:h-[450px]">
             <iframe 
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3921.47654321!2d-36.66!3d-9.75!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zOcKwNDUnMDAuMCJTIDM2wrAzOScwMC4wIlc!5e0!3m2!1spt-BR!2sbr!4v1234567890" 
+              src="https://www.google.com/maps?q=HUB+FDS+O+melhor+espa%C3%A7o+de+eventos+de+Arapiraca+Educa%C3%A7%C3%A3o+tecnol%C3%B3gica+%2B+Networking+real&output=embed" 
               width="100%" 
               height="100%" 
               style={{ border: 0 }} 

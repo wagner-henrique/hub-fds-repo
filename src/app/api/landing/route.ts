@@ -9,6 +9,9 @@ const LANDING_TESTIMONIALS_KEY = "landing_testimonials"
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((item) => typeof item === "string")
 
+const isOptionalStringArray = (value: unknown): value is string[] | undefined =>
+  value === undefined || isStringArray(value)
+
 const isLandingSpace = (value: unknown): value is LandingSpace => {
   if (!value || typeof value !== "object") {
     return false
@@ -21,7 +24,8 @@ const isLandingSpace = (value: unknown): value is LandingSpace => {
     typeof candidate.description === "string" &&
     typeof candidate.capacity === "string" &&
     typeof candidate.image === "string" &&
-    isStringArray(candidate.features)
+    isStringArray(candidate.features) &&
+    isOptionalStringArray(candidate.pricing)
   )
 }
 
