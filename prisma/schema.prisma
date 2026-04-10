@@ -21,6 +21,26 @@ enum LeadStatus {
   LOST
 }
 
+enum LeadAiStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum LeadMessageSender {
+  CUSTOMER
+  AI
+  HUMAN
+  SYSTEM
+}
+
+enum LeadMessageType {
+  TEXT
+  AUDIO
+  IMAGE
+  FILE
+  EVENT
+}
+
 enum UserRole {
   ADMIN
   RECEPTION
@@ -114,12 +134,39 @@ model Lead {
   name      String?
   email     String
   phone     String?
+  whatsappPhone String?
   source    String     @default("landing_page")
   status    LeadStatus @default(NEW)
+  aiStatus  LeadAiStatus @default(ACTIVE)
+  aiPausedAt DateTime?
+  aiPausedBy String?
+  lastMessageAt DateTime?
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
+  messages LeadMessage[]
+
   @@index([email])
+  @@index([whatsappPhone])
+  @@index([phone])
+  @@index([aiStatus])
+  @@index([lastMessageAt])
+}
+
+model LeadMessage {
+  id        String            @id @default(cuid())
+  leadId    String
+  sender    LeadMessageSender
+  type      LeadMessageType   @default(TEXT)
+  content   String
+  readAt    DateTime?
+  metadata  Json?
+  createdAt DateTime          @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, createdAt])
+  @@index([sender])
 }
 
 model Setting {

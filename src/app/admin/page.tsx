@@ -121,6 +121,10 @@ const getTabFromPathname = (pathname: string) => {
   return validAdminTabIds.has(fromPath) ? fromPath : 'dashboard'
 }
 
+const getAdminTabPath = (tabId: string) => {
+  return tabId === 'dashboard' ? '/admin' : `/admin/${tabId}`
+}
+
 const tabMeta: Record<string, { title: string; description: string }> = {
   dashboard: {
     title: 'Painel Administrativo',
@@ -178,6 +182,18 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
 
   const [bookings, setBookings] = useState<any[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [leadMessages, setLeadMessages] = useState<any[]>([]);
+  const [leadMessagesLoading, setLeadMessagesLoading] = useState(false);
+  const [leadMessageInput, setLeadMessageInput] = useState("");
+  const [sendingLeadMessage, setSendingLeadMessage] = useState(false);
+  const [updatingLeadAi, setUpdatingLeadAi] = useState(false);
+  const [leadsPanelLoading, setLeadsPanelLoading] = useState(false);
+  const [leadsSearchInput, setLeadsSearchInput] = useState("");
+  const [leadsSearchTerm, setLeadsSearchTerm] = useState("");
+  const [leadsAiFilter, setLeadsAiFilter] = useState("ALL");
+  const [leadsUnreadFilter, setLeadsUnreadFilter] = useState("ALL");
+  const [leadsInteractionFilter, setLeadsInteractionFilter] = useState("ALL");
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [page, setPage] = useState(1);
@@ -354,8 +370,6 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
     city: "Arapiraca",
   });
   const [compactMode, setCompactMode] = useState(false);
-  const [tabSwitchLoading, setTabSwitchLoading] = useState(false);
-  const isFirstTabRender = useRef(true);
   const crmRequestControllerRef = useRef<AbortController | null>(null);
 
   const tableHeadBaseClass = compactMode
@@ -363,6 +377,11 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
     : "py-5 text-xs font-semibold uppercase tracking-wide text-slate-500";
 
   const tableCellBaseClass = compactMode ? "py-3" : "py-6";
+
+  const selectedLead = useMemo(
+    () => leads.find((lead) => lead.id === selectedLeadId) || null,
+    [leads, selectedLeadId],
+  )
 
   const updateCrmFiltersInUrl = (updates: { dealStage?: string; taskStatus?: string; period?: string }) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -383,11 +402,15 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
     router.replace(query ? `${pathname}?${query}` : pathname)
   }
 
+  const prefetchAdminTab = (tabId: string) => {
+    router.prefetch(getAdminTabPath(tabId))
+  }
+
   const handleTabChange = (tabId: string) => {
     if (tabId === activeTab) return;
     setActiveTab(tabId);
 
-    const targetPath = tabId === 'dashboard' ? '/admin' : `/admin/${tabId}`
+    const targetPath = getAdminTabPath(tabId)
     const params = new URLSearchParams(searchParams.toString())
     params.delete('tab')
 
@@ -402,13 +425,20 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
   };
 
   useEffect(() => {
+    adminTabs.forEach((tab) => {
+      if (tab.id !== activeTab) {
+        prefetchAdminTab(tab.id)
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
     const pathTab = getTabFromPathname(pathname || '/admin')
     const queryTab = searchParams.get('tab')
     const resolvedTab = forcedTab || pathTab || (queryTab && validAdminTabIds.has(queryTab) ? queryTab : 'dashboard')
-    if (resolvedTab !== activeTab) {
-      setActiveTab(resolvedTab)
-    }
-  }, [forcedTab, pathname, searchParams, activeTab])
+    setActiveTab((prevTab) => (prevTab === resolvedTab ? prevTab : resolvedTab))
+  }, [forcedTab, pathname, searchParams])
 
   useEffect(() => {
     if (activeTab !== 'crm') return
@@ -449,12 +479,18 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
   };
 
   useEffect(() => {
-    if (activeTab === 'dashboard' || activeTab === 'bookings' || activeTab === 'leads') {
+    if (activeTab === 'dashboard' || activeTab === 'bookings') {
       fetchData(page);
       return;
     }
 
+    if (activeTab === 'leads') {
+      fetchLeadsPanelData();
+      return;
+    }
+
     setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, activeTab]);
 
   useEffect(() => {
@@ -462,20 +498,6 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
       setCompactMode(true);
     }
   }, []);
-
-  useEffect(() => {
-    if (isFirstTabRender.current) {
-      isFirstTabRender.current = false;
-      return;
-    }
-
-    setTabSwitchLoading(true);
-    const timeout = setTimeout(() => {
-      setTabSwitchLoading(false);
-    }, 380);
-
-    return () => clearTimeout(timeout);
-  }, [activeTab]);
 
   const fetchOperationalData = async (date: string) => {
     setOperationalLoading(true);
@@ -549,6 +571,164 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
       setClientsLoading(false);
     }
   };
+
+  const fetchLeadMessages = async (leadId: string) => {
+    setLeadMessagesLoading(true)
+    try {
+      const response = await fetch(`/api/leads/${leadId}/messages?limit=300`)
+      if (response.status === 401 || response.status === 403) {
+        await signOut({ callbackUrl: '/login' })
+        return
+      }
+
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Falha ao carregar conversa do lead.')
+      }
+
+      setLeadMessages(payload?.data || [])
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao carregar conversa do lead.')
+    } finally {
+      setLeadMessagesLoading(false)
+    }
+  }
+
+  const fetchLeadsPanelData = async () => {
+    setLeadsPanelLoading(true)
+    try {
+      const params = new URLSearchParams({
+        page: '1',
+        limit: '200',
+      })
+
+      if (leadsSearchTerm.trim()) params.set('search', leadsSearchTerm.trim())
+      if (leadsAiFilter !== 'ALL') params.set('aiStatus', leadsAiFilter)
+      if (leadsUnreadFilter !== 'ALL') params.set('unread', leadsUnreadFilter)
+      if (leadsInteractionFilter !== 'ALL') params.set('interaction', leadsInteractionFilter)
+
+      const response = await fetch(`/api/leads?${params.toString()}`)
+      if (response.status === 401 || response.status === 403) {
+        await signOut({ callbackUrl: '/login' })
+        return
+      }
+
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Falha ao carregar leads.')
+      }
+
+      setLeads(payload?.data || [])
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao carregar leads.')
+    } finally {
+      setLeadsPanelLoading(false)
+    }
+  }
+
+  const markLeadMessagesAsRead = async (leadId: string) => {
+    try {
+      const response = await fetch(`/api/leads/${leadId}/messages/read`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) return
+
+      setLeads((prev) => prev.map((lead) => (
+        lead.id === leadId
+          ? { ...lead, unreadCount: 0 }
+          : lead
+      )))
+
+      setLeadMessages((prev) => prev.map((message) => (
+        message.sender === 'CUSTOMER' && !message.readAt
+          ? { ...message, readAt: new Date().toISOString() }
+          : message
+      )))
+    } catch {
+      // leitura não deve bloquear a UX
+    }
+  }
+
+  const handleToggleLeadAiStatus = async (leadId: string, currentStatus: string) => {
+    setUpdatingLeadAi(true)
+    const nextStatus = currentStatus === 'PAUSED' ? 'ACTIVE' : 'PAUSED'
+    try {
+      const response = await fetch(`/api/leads/${leadId}/ai-status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aiStatus: nextStatus }),
+      })
+
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Falha ao atualizar status da IA.')
+      }
+
+      setLeads((prev) => prev.map((lead) => (
+        lead.id === leadId
+          ? {
+              ...lead,
+              aiStatus: payload?.data?.aiStatus || nextStatus,
+              aiPausedAt: payload?.data?.aiPausedAt || null,
+              aiPausedBy: payload?.data?.aiPausedBy || null,
+            }
+          : lead
+      )))
+
+      showSuccess(nextStatus === 'PAUSED' ? 'IA pausada para atendimento humano.' : 'IA retomada para atendimento automático.')
+      fetchLeadsPanelData()
+      await fetchLeadMessages(leadId)
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao atualizar status da IA.')
+    } finally {
+      setUpdatingLeadAi(false)
+    }
+  }
+
+  const handleSendLeadMessage = async () => {
+    if (!selectedLeadId) return
+    const content = leadMessageInput.trim()
+    if (!content) return
+
+    setSendingLeadMessage(true)
+    try {
+      const response = await fetch(`/api/leads/${selectedLeadId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content,
+          sender: 'HUMAN',
+          type: 'TEXT',
+          sendToWhatsapp: true,
+          metadata: {
+            channel: 'admin-panel',
+          },
+        }),
+      })
+
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Falha ao enviar mensagem.')
+      }
+
+      setLeadMessageInput('')
+      setLeadMessages((prev) => [...prev, payload?.data])
+      setLeads((prev) => prev.map((lead) => (
+        lead.id === selectedLeadId
+          ? {
+              ...lead,
+              lastMessageAt: payload?.data?.createdAt || new Date().toISOString(),
+            }
+          : lead
+      )))
+      showSuccess('Mensagem registrada no atendimento.')
+    } catch (error: any) {
+      showError(error?.message || 'Erro ao enviar mensagem.')
+    } finally {
+      setSendingLeadMessage(false)
+    }
+  }
 
   const fetchCrmData = async () => {
     setCrmLoading(true);
@@ -704,6 +884,43 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
       fetchClients(clientsPage, clientsSearchTerm);
     }
   }, [activeTab, clientsPage, clientsSearchTerm]);
+
+  useEffect(() => {
+    if (activeTab !== 'leads') return
+    fetchLeadsPanelData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, leadsSearchTerm, leadsAiFilter, leadsUnreadFilter, leadsInteractionFilter])
+
+  useEffect(() => {
+    if (activeTab !== 'leads') return
+
+    if (leads.length === 0) {
+      setSelectedLeadId(null)
+      setLeadMessages([])
+      return
+    }
+
+    const selectedStillExists = selectedLeadId && leads.some((lead) => lead.id === selectedLeadId)
+    if (!selectedStillExists) {
+      setSelectedLeadId(leads[0].id)
+    }
+  }, [activeTab, leads, selectedLeadId])
+
+  useEffect(() => {
+    if (activeTab !== 'leads' || !selectedLeadId) return
+
+    fetchLeadMessages(selectedLeadId).then(() => {
+      markLeadMessagesAsRead(selectedLeadId)
+    })
+
+    const interval = setInterval(() => {
+      fetchLeadMessages(selectedLeadId).then(() => {
+        markLeadMessagesAsRead(selectedLeadId)
+      })
+    }, 15000)
+
+    return () => clearInterval(interval)
+  }, [activeTab, selectedLeadId])
 
   useEffect(() => {
     if (activeTab !== 'crm') return;
@@ -1708,6 +1925,8 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
             <button
               key={item.id}
               onClick={() => handleTabChange(item.id)}
+              onMouseEnter={() => prefetchAdminTab(item.id)}
+              onFocus={() => prefetchAdminTab(item.id)}
               className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition-all ${
                 activeTab === item.id 
                 ? 'bg-primary text-white shadow-md shadow-primary/25' 
@@ -1744,14 +1963,6 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-xl border-slate-200"
-              onClick={() => setCompactMode((prev) => !prev)}
-            >
-              {compactMode ? "Modo confortável" : "Modo compacto"}
-            </Button>
             {activeTab === "bookings" && (
               <>
                 <Button className="rounded-xl" onClick={() => setIsCreateDialogOpen(true)}>
@@ -1882,12 +2093,6 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
           </div>
         </header>
 
-        {tabSwitchLoading && (
-          <div className="mb-6 overflow-hidden rounded-full bg-primary/10">
-            <div className="h-1 w-1/3 animate-pulse rounded-full bg-primary/70" />
-          </div>
-        )}
-
         {activeTab === "dashboard" && (
           <DashboardTab
             bookings={bookings}
@@ -1903,19 +2108,19 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
           />
         )}
 
-        {(activeTab === "bookings" || activeTab === "leads") && (
+        {activeTab === "bookings" && (
           <div className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white">
             <Table>
               <TableHeader>
                 <TableRow className="border-none bg-slate-50/70">
                   <TableHead className={`px-8 ${tableHeadBaseClass}`}>Informações</TableHead>
-                  <TableHead className={tableHeadBaseClass}>{activeTab === "bookings" ? "Data/Hora" : "Origem"}</TableHead>
+                  <TableHead className={tableHeadBaseClass}>Data/Hora</TableHead>
                   <TableHead className={tableHeadBaseClass}>Status</TableHead>
                   <TableHead className={`px-8 text-right ${tableHeadBaseClass}`}>Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(activeTab === "bookings" ? bookings : leads).map((item: any) => (
+                {bookings.map((item: any) => (
                   <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors border-slate-50">
                     <TableCell className={`${tableCellBaseClass} px-8`}>
                       <div className="font-bold text-slate-900">{item.name}</div>
@@ -1923,20 +2128,16 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                       {item.phone && <div className="text-[10px] font-bold text-primary flex items-center gap-1 mt-1"><Phone size={10} /> {item.phone}</div>}
                     </TableCell>
                     <TableCell className={tableCellBaseClass}>
-                      {activeTab === "bookings" ? (
-                        <div className="flex flex-col">
-                          <span className="font-medium text-slate-600">{new Date(item.date).toLocaleDateString('pt-BR')}</span>
-                          <span className="text-xs font-bold text-primary">{item.time}</span>
-                        </div>
-                      ) : (
-                        <Badge variant="outline" className="rounded-lg">{item.source}</Badge>
-                      )}
+                      <div className="flex flex-col">
+                        <span className="font-medium text-slate-600">{new Date(item.date).toLocaleDateString('pt-BR')}</span>
+                        <span className="text-xs font-bold text-primary">{item.time}</span>
+                      </div>
                     </TableCell>
                     <TableCell className={tableCellBaseClass}>
                       <Badge className={`rounded-lg px-3 py-1 font-bold ${
                         ['CONFIRMED', 'QUALIFIED'].includes(item.status) ? 'bg-primary' : item.status === 'CANCELLED' || item.status === 'LOST' ? 'bg-red-500' : 'bg-amber-500'
                       }`}>
-                        {activeTab === "bookings" ? (bookingStatusLabels[item.status] || item.status) : (leadStatusLabels[item.status] || item.status)}
+                        {bookingStatusLabels[item.status] || item.status}
                       </Badge>
                     </TableCell>
                     <TableCell className={`${tableCellBaseClass} px-8 text-right`}>
@@ -1944,7 +2145,7 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                         <Button size="icon" variant="ghost" onClick={() => { setEditingItem(item); setIsEditDialogOpen(true); }}>
                           <Edit3 size={18} className="text-primary" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="text-red-500" onClick={() => handleDelete(item.id, activeTab as any)}>
+                        <Button size="icon" variant="ghost" className="text-red-500" onClick={() => handleDelete(item.id, 'bookings')}>
                           <Trash2 size={18} />
                         </Button>
                       </div>
@@ -1953,6 +2154,188 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                 ))}
               </TableBody>
             </Table>
+          </div>
+        )}
+
+        {activeTab === "leads" && (
+          <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+            <Card className="overflow-hidden rounded-3xl border border-slate-100 bg-white p-0 shadow-none">
+              <div className="border-b border-slate-100 px-4 py-3">
+                <h3 className="text-sm font-semibold text-slate-800">Leads e Conversas</h3>
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      className="h-9 rounded-xl"
+                      placeholder="Buscar por nome/telefone..."
+                      value={leadsSearchInput}
+                      onChange={(e) => setLeadsSearchInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          setLeadsSearchTerm(leadsSearchInput)
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      className="h-9 rounded-xl"
+                      onClick={() => setLeadsSearchTerm(leadsSearchInput)}
+                    >
+                      Buscar
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Select value={leadsAiFilter} onValueChange={setLeadsAiFilter}>
+                      <SelectTrigger className="h-8 rounded-xl text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                        <SelectItem value="ALL">IA: todas</SelectItem>
+                        <SelectItem value="ACTIVE">IA: ativa</SelectItem>
+                        <SelectItem value="PAUSED">IA: pausada</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={leadsUnreadFilter} onValueChange={setLeadsUnreadFilter}>
+                      <SelectTrigger className="h-8 rounded-xl text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                        <SelectItem value="ALL">Leitura: todos</SelectItem>
+                        <SelectItem value="UNREAD">Não lidas</SelectItem>
+                        <SelectItem value="READ">Lidas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={leadsInteractionFilter} onValueChange={setLeadsInteractionFilter}>
+                      <SelectTrigger className="h-8 rounded-xl text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
+                        <SelectItem value="ALL">Interação: tudo</SelectItem>
+                        <SelectItem value="24H">Últimas 24h</SelectItem>
+                        <SelectItem value="7D">Últimos 7 dias</SelectItem>
+                        <SelectItem value="30D">Últimos 30 dias</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+              <div className="max-h-[68vh] overflow-y-auto p-2">
+                {leadsPanelLoading ? (
+                  <p className="px-3 py-6 text-sm text-slate-400">Carregando leads...</p>
+                ) : leads.length === 0 ? (
+                  <p className="px-3 py-6 text-sm text-slate-400">Nenhum lead encontrado.</p>
+                ) : (
+                  leads.map((lead) => {
+                    const isActive = selectedLeadId === lead.id
+                    return (
+                      <button
+                        key={lead.id}
+                        type="button"
+                        onClick={() => setSelectedLeadId(lead.id)}
+                        className={`mb-2 w-full rounded-2xl border px-3 py-3 text-left transition ${
+                          isActive ? 'border-primary/40 bg-primary/5' : 'border-slate-100 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate text-sm font-semibold text-slate-900">{lead.name || 'Sem nome'}</p>
+                          <div className="flex items-center gap-1">
+                            {(lead.unreadCount || 0) > 0 && (
+                              <Badge className="rounded-lg bg-red-500 px-2 py-0.5 text-[10px]">
+                                {lead.unreadCount} nova{lead.unreadCount > 1 ? 's' : ''}
+                              </Badge>
+                            )}
+                            <Badge className={`rounded-lg px-2 py-0.5 text-[10px] ${lead.aiStatus === 'PAUSED' ? 'bg-amber-500' : 'bg-primary'}`}>
+                              {lead.aiStatus === 'PAUSED' ? 'IA pausada' : 'IA ativa'}
+                            </Badge>
+                          </div>
+                        </div>
+                        <p className="mt-1 truncate text-xs text-slate-500">{lead.whatsappPhone || lead.phone || lead.email}</p>
+                        <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                          <span>{leadStatusLabels[lead.status] || lead.status}</span>
+                          <span>
+                            {lead.lastMessageAt ? new Date(lead.lastMessageAt).toLocaleString('pt-BR') : 'Sem interação'}
+                          </span>
+                        </div>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            </Card>
+
+            <Card className="overflow-hidden rounded-3xl border border-slate-100 bg-white p-0 shadow-none">
+              {!selectedLead ? (
+                <div className="p-8 text-sm text-slate-400">Selecione um lead para abrir a conversa.</div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                    <div>
+                      <p className="text-base font-semibold text-slate-900">{selectedLead.name || 'Lead sem nome'}</p>
+                      <p className="text-xs text-slate-500">{selectedLead.whatsappPhone || selectedLead.phone || selectedLead.email}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="rounded-lg border-slate-200">
+                        {leadStatusLabels[selectedLead.status] || selectedLead.status}
+                      </Badge>
+                      <Button
+                        variant={selectedLead.aiStatus === 'PAUSED' ? 'default' : 'outline'}
+                        className="rounded-xl"
+                        disabled={updatingLeadAi}
+                        onClick={() => handleToggleLeadAiStatus(selectedLead.id, selectedLead.aiStatus)}
+                      >
+                        {selectedLead.aiStatus === 'PAUSED' ? 'Retomar IA' : 'Pausar IA'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="h-[52vh] space-y-3 overflow-y-auto bg-slate-50/30 px-5 py-4">
+                    {leadMessagesLoading ? (
+                      <p className="text-sm text-slate-400">Carregando conversa...</p>
+                    ) : leadMessages.length === 0 ? (
+                      <p className="text-sm text-slate-400">Nenhuma mensagem registrada ainda.</p>
+                    ) : (
+                      leadMessages.map((message) => {
+                        const isFromCustomer = message.sender === 'CUSTOMER'
+                        const isFromAi = message.sender === 'AI'
+                        const bubbleClass = isFromCustomer
+                          ? 'bg-white border border-slate-200'
+                          : isFromAi
+                            ? 'bg-primary/10 border border-primary/20'
+                            : 'bg-amber-50 border border-amber-200'
+
+                        return (
+                          <div key={message.id} className={`max-w-[85%] rounded-2xl px-3 py-2 ${bubbleClass} ${isFromCustomer ? '' : 'ml-auto'}`}>
+                            <div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-wide text-slate-500">
+                              <span>{message.sender}</span>
+                              <span>{message.type}</span>
+                            </div>
+                            <p className="whitespace-pre-wrap text-sm text-slate-700">{message.content}</p>
+                            <p className="mt-1 text-[10px] text-slate-400">{new Date(message.createdAt).toLocaleString('pt-BR')}</p>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+
+                  <div className="border-t border-slate-100 p-4">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        className="rounded-xl"
+                        placeholder="Digite uma mensagem de atendimento manual..."
+                        value={leadMessageInput}
+                        onChange={(e) => setLeadMessageInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleSendLeadMessage()
+                          }
+                        }}
+                      />
+                      <Button className="rounded-xl" onClick={handleSendLeadMessage} disabled={sendingLeadMessage || !leadMessageInput.trim()}>
+                        {sendingLeadMessage ? 'Enviando...' : 'Enviar'}
+                      </Button>
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-500">
+                      Mensagens enviadas por aqui ficam registradas no histórico interno do lead.
+                    </p>
+                  </div>
+                </>
+              )}
+            </Card>
           </div>
         )}
 

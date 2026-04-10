@@ -20,6 +20,8 @@ export function getN8nTokenFromRequest(request: Request): string | null {
   }
 
   return (
+    request.headers.get("n8n_api_key") ||
+    request.headers.get("N8N_API_KEY") ||
     request.headers.get("x-n8n-key") ||
     request.headers.get("x-api-key") ||
     null
