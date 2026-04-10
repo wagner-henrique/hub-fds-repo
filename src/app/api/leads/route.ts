@@ -32,31 +32,37 @@ export async function GET(request: Request) {
       interactionDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
     }
 
+    const andFilters: Prisma.LeadWhereInput[] = []
+
+    if (search) {
+      andFilters.push({
+        OR: [
+          { name: { contains: search, mode: Prisma.QueryMode.insensitive } },
+          { email: { contains: search, mode: Prisma.QueryMode.insensitive } },
+          { phone: { contains: search, mode: Prisma.QueryMode.insensitive } },
+          { whatsappPhone: { contains: search, mode: Prisma.QueryMode.insensitive } },
+        ],
+      })
+    }
+
+    if (aiStatusFilter !== 'ALL' && (aiStatusFilter === LeadAiStatus.ACTIVE || aiStatusFilter === LeadAiStatus.PAUSED)) {
+      andFilters.push({ aiStatus: aiStatusFilter as LeadAiStatus })
+    }
+
+    if (unreadFilter === 'UNREAD') {
+      andFilters.push({ messages: { some: { sender: 'CUSTOMER', readAt: null } as any } })
+    }
+
+    if (unreadFilter === 'READ') {
+      andFilters.push({ messages: { none: { sender: 'CUSTOMER', readAt: null } as any } })
+    }
+
+    if (interactionDate) {
+      andFilters.push({ lastMessageAt: { gte: interactionDate } })
+    }
+
     const where: Prisma.LeadWhereInput = {
-      AND: [
-        ...(search
-          ? [{
-              OR: [
-                { name: { contains: search, mode: 'insensitive' } },
-                { email: { contains: search, mode: 'insensitive' } },
-                { phone: { contains: search, mode: 'insensitive' } },
-                { whatsappPhone: { contains: search, mode: 'insensitive' } },
-              ],
-            }]
-          : []),
-        ...(aiStatusFilter !== 'ALL' && (aiStatusFilter === LeadAiStatus.ACTIVE || aiStatusFilter === LeadAiStatus.PAUSED)
-          ? [{ aiStatus: aiStatusFilter as LeadAiStatus }]
-          : []),
-        ...(unreadFilter === 'UNREAD'
-          ? [{ messages: { some: { sender: 'CUSTOMER', readAt: null } } }]
-          : []),
-        ...(unreadFilter === 'READ'
-          ? [{ messages: { none: { sender: 'CUSTOMER', readAt: null } } }]
-          : []),
-        ...(interactionDate
-          ? [{ lastMessageAt: { gte: interactionDate } }]
-          : []),
-      ],
+      AND: andFilters,
     }
 
     const [leads, total] = await Promise.all([
