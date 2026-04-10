@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { MapPin, Phone, Instagram } from 'lucide-react';
+import { MapPin, Phone, Instagram, Clock3 } from 'lucide-react';
 
 const Contact = () => {
   return (
@@ -30,6 +30,17 @@ const Contact = () => {
                 <div>
                   <h4 className="mb-1 text-lg font-bold sm:text-xl">Telefone</h4>
                   <p className="text-sm text-muted-foreground sm:text-base">(82) 99999-9999</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4 sm:gap-6">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary sm:h-14 sm:w-14">
+                  <Clock3 size={24} className="sm:hidden" />
+                  <Clock3 size={28} className="hidden sm:block" />
+                </div>
+                <div>
+                  <h4 className="mb-1 text-lg font-bold sm:text-xl">Horário de funcionamento</h4>
+                  <p className="text-sm text-muted-foreground sm:text-base">Das 08:00 às 22:00</p>
                 </div>
               </div>
 

@@ -16,7 +16,7 @@ if (mpPublicKey) {
 }
 
 const timeSlots = [
-  "08:00", "09:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00"
+  "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"
 ]
 
 const rooms = [
@@ -45,6 +45,7 @@ export default function BookingForm({ initialRoomId, onSuccess }: BookingFormPro
   const [bookedSlots, setBookedSlots] = useState<string[]>([])
   const [availabilityLoading, setAvailabilityLoading] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [showExtendedSlots, setShowExtendedSlots] = useState(false)
 
   const currentRoomDetails = rooms.find(r => r.id === selectedRoom)
 
@@ -108,6 +109,10 @@ export default function BookingForm({ initialRoomId, onSuccess }: BookingFormPro
   }
 
   const amount = getDynamicPrice()
+
+  const visibleTimeSlots = showExtendedSlots
+    ? timeSlots
+    : timeSlots.filter((slot) => Number(slot.split(':')[0]) <= 18)
 
   const toggleSlot = (slot: string) => {
     setSelectedSlots(prev => 
@@ -417,7 +422,7 @@ const validateSchedule = () => {
         <div className="space-y-3">
           <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Horário</label>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-2">
-            {timeSlots.map((slot) => {
+            {visibleTimeSlots.map((slot) => {
               const isBooked = bookedSlots.includes(slot)
               const isSelected = selectedSlots.includes(slot)
               return (
@@ -438,6 +443,15 @@ const validateSchedule = () => {
               )
             })}
           </div>
+          {!showExtendedSlots && (
+            <button
+              type="button"
+              onClick={() => setShowExtendedSlots(true)}
+              className="text-xs font-bold text-primary transition-colors hover:text-primary/80"
+            >
+              Ver horários após 18:00 (até 22:00)
+            </button>
+          )}
           {availabilityLoading && selectedRoom !== 'coworking' && (
             <p className="text-xs text-muted-foreground">Verificando horários disponíveis...</p>
           )}
