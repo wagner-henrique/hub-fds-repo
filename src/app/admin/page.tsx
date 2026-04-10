@@ -371,6 +371,7 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
   });
   const [compactMode, setCompactMode] = useState(false);
   const crmRequestControllerRef = useRef<AbortController | null>(null);
+  const leadMessagesContainerRef = useRef<HTMLDivElement | null>(null);
 
   const tableHeadBaseClass = compactMode
     ? "py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500"
@@ -572,8 +573,30 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
     }
   };
 
-  const fetchLeadMessages = async (leadId: string) => {
-    setLeadMessagesLoading(true)
+  const scrollLeadMessagesToBottom = () => {
+    const container = leadMessagesContainerRef.current
+    if (!container) return
+    container.scrollTop = container.scrollHeight
+  }
+
+  const fetchLeadMessages = async (
+    leadId: string,
+    options?: {
+      showLoading?: boolean
+      preserveScroll?: boolean
+    },
+  ) => {
+    const showLoading = options?.showLoading ?? true
+    const preserveScroll = options?.preserveScroll ?? false
+
+    const container = leadMessagesContainerRef.current
+    const previousScrollTop = container?.scrollTop ?? 0
+    const previousScrollHeight = container?.scrollHeight ?? 0
+    const wasNearBottom = container
+      ? (container.scrollHeight - (container.scrollTop + container.clientHeight)) < 96
+      : false
+
+    if (showLoading) setLeadMessagesLoading(true)
     try {
       const response = await fetch(`/api/leads/${leadId}/messages?limit=300`)
       if (response.status === 401 || response.status === 403) {
@@ -587,10 +610,24 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
       }
 
       setLeadMessages(payload?.data || [])
+
+      requestAnimationFrame(() => {
+        const currentContainer = leadMessagesContainerRef.current
+        if (!currentContainer) return
+
+        if (!preserveScroll || wasNearBottom) {
+          currentContainer.scrollTop = currentContainer.scrollHeight
+          return
+        }
+
+        const newScrollHeight = currentContainer.scrollHeight
+        const heightDelta = newScrollHeight - previousScrollHeight
+        currentContainer.scrollTop = Math.max(0, previousScrollTop + heightDelta)
+      })
     } catch (error: any) {
       showError(error?.message || 'Erro ao carregar conversa do lead.')
     } finally {
-      setLeadMessagesLoading(false)
+      if (showLoading) setLeadMessagesLoading(false)
     }
   }
 
@@ -678,7 +715,7 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
 
       showSuccess(nextStatus === 'PAUSED' ? 'IA pausada para atendimento humano.' : 'IA retomada para atendimento automático.')
       fetchLeadsPanelData()
-      await fetchLeadMessages(leadId)
+      await fetchLeadMessages(leadId, { showLoading: false, preserveScroll: true })
     } catch (error: any) {
       showError(error?.message || 'Erro ao atualizar status da IA.')
     } finally {
@@ -714,6 +751,7 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
 
       setLeadMessageInput('')
       setLeadMessages((prev) => [...prev, payload?.data])
+      requestAnimationFrame(scrollLeadMessagesToBottom)
       setLeads((prev) => prev.map((lead) => (
         lead.id === selectedLeadId
           ? {
@@ -909,12 +947,12 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
   useEffect(() => {
     if (activeTab !== 'leads' || !selectedLeadId) return
 
-    fetchLeadMessages(selectedLeadId).then(() => {
+    fetchLeadMessages(selectedLeadId, { showLoading: true, preserveScroll: false }).then(() => {
       markLeadMessagesAsRead(selectedLeadId)
     })
 
     const interval = setInterval(() => {
-      fetchLeadMessages(selectedLeadId).then(() => {
+      fetchLeadMessages(selectedLeadId, { showLoading: false, preserveScroll: true }).then(() => {
         markLeadMessagesAsRead(selectedLeadId)
       })
     }, 15000)
@@ -2282,7 +2320,7 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                     </div>
                   </div>
 
-                  <div className="h-[52vh] space-y-3 overflow-y-auto bg-slate-50/30 px-5 py-4">
+                  <div ref={leadMessagesContainerRef} className="h-[52vh] space-y-3 overflow-y-auto bg-slate-50/30 px-5 py-4">
                     {leadMessagesLoading ? (
                       <p className="text-sm text-slate-400">Carregando conversa...</p>
                     ) : leadMessages.length === 0 ? (
