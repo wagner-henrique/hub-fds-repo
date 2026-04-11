@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+ import { NextResponse } from "next/server"
 import { LeadAiStatus, LeadMessageSender, LeadMessageType } from "@prisma/client"
 import { z } from "zod"
 
@@ -28,6 +28,33 @@ function normalizeWhatsappPhone(phone: string): string {
 
 function buildLeadEmail(phone: string): string {
   return `wa-${phone}@hub-fds.local`
+}
+
+function normalizeLeadMessageContent(content: string): string {
+  const trimmedContent = content.trim()
+  if (!trimmedContent) return content
+
+  try {
+    const parsed = JSON.parse(trimmedContent)
+
+    if (Array.isArray(parsed)) {
+      const normalizedArrayContent = parsed
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .join(" ")
+
+      return normalizedArrayContent || trimmedContent
+    }
+
+    if (typeof parsed === "string") {
+      return parsed.trim() || trimmedContent
+    }
+  } catch {
+    // conteúdo não está em JSON serializado
+  }
+
+  return trimmedContent
 }
 
 async function findLeadByPhone(normalizedPhone: string) {
@@ -85,6 +112,7 @@ export async function POST(request: Request) {
     const body = await request.json()
     const payload = syncLeadMessageSchema.parse(body)
     const normalizedPhone = normalizeWhatsappPhone(payload.phone)
+    const normalizedContent = normalizeLeadMessageContent(payload.content)
     const now = payload.receivedAt ? new Date(payload.receivedAt) : new Date()
 
     const existingLead = await findLeadByPhone(normalizedPhone)
@@ -118,7 +146,7 @@ export async function POST(request: Request) {
         leadId: lead.id,
         sender: payload.sender,
         type: payload.type,
-        content: payload.content,
+        content: normalizedContent,
         readAt: payload.sender === 'CUSTOMER' ? null : now,
         metadata: payload.metadata,
         createdAt: now,

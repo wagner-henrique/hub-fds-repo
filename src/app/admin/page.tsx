@@ -125,6 +125,33 @@ const getAdminTabPath = (tabId: string) => {
   return tabId === 'dashboard' ? '/admin' : `/admin/${tabId}`
 }
 
+const normalizeLeadMessageContent = (content: string) => {
+  const trimmedContent = content.trim()
+  if (!trimmedContent) return content
+
+  try {
+    const parsed = JSON.parse(trimmedContent)
+
+    if (Array.isArray(parsed)) {
+      const normalizedArrayContent = parsed
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .join(' ')
+
+      return normalizedArrayContent || trimmedContent
+    }
+
+    if (typeof parsed === 'string') {
+      return parsed.trim() || trimmedContent
+    }
+  } catch {
+    // conteúdo não está em JSON serializado
+  }
+
+  return trimmedContent
+}
+
 const tabMeta: Record<string, { title: string; description: string }> = {
   dashboard: {
     title: 'Painel Administrativo',
@@ -2341,7 +2368,7 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                               <span>{message.sender}</span>
                               <span>{message.type}</span>
                             </div>
-                            <p className="whitespace-pre-wrap text-sm text-slate-700">{message.content}</p>
+                            <p className="whitespace-pre-wrap text-sm text-slate-700">{normalizeLeadMessageContent(message.content || '')}</p>
                             <p className="mt-1 text-[10px] text-slate-400">{new Date(message.createdAt).toLocaleString('pt-BR')}</p>
                           </div>
                         )
