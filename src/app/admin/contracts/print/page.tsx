@@ -59,7 +59,13 @@ export default function ContractPrintPage() {
         <div className="mx-auto max-w-5xl rounded-2xl border border-red-200 bg-red-50 p-6 text-red-600">{error}</div>
       ) : (
         <article className="mx-auto max-w-5xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm print:border-none print:shadow-none print:p-0">
-          <div dangerouslySetInnerHTML={{ __html: html }} />
+          <iframe
+            className="h-[70vh] w-full rounded-xl border border-slate-200 print:h-auto print:min-h-[90vh]"
+            title="Contrato"
+            sandbox=""
+            referrerPolicy="no-referrer"
+            srcDoc={html}
+          />
         </article>
       )}
     </main>

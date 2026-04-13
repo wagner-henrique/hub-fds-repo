@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getPaymentById } from "@/lib/mercadopago"
 import { BookingStatus } from "@prisma/client"
 import crypto from "node:crypto"
+import { applyRateLimit } from "@/lib/rate-limit"
 
 function safeEqual(left: string, right: string): boolean {
   const leftBuffer = Buffer.from(left)
@@ -17,9 +18,18 @@ function safeEqual(left: string, right: string): boolean {
 
 export async function POST(request: Request) {
   try {
+    const rateLimit = applyRateLimit(request, "webhook-mercadopago", { max: 120, windowMs: 60_000 })
+    if (!rateLimit.ok) {
+      const retryAfter = Math.max(1, Math.ceil((rateLimit.resetAt - Date.now()) / 1000))
+      return NextResponse.json(
+        { error: "Muitas requisições. Tente novamente em instantes." },
+        { status: 429, headers: { "Retry-After": String(retryAfter) } }
+      )
+    }
+
     const url = new URL(request.url)
     const expectedSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET
-    const providedSecret = request.headers.get("x-webhook-secret") || url.searchParams.get("secret")
+    const providedSecret = request.headers.get("x-webhook-secret")
 
     if (!expectedSecret) {
       return NextResponse.json({ error: "Webhook não configurado" }, { status: 503 })

@@ -6,6 +6,7 @@ import { processDirectPayment } from "@/lib/mercadopago"
 import { BookingStatus, Prisma } from "@prisma/client"
 import { z } from "zod"
 import { requireRole } from "@/lib/auth-guards"
+import { applyRateLimit } from "@/lib/rate-limit"
 
 const cardPaymentSchema = z.object({
   method: z.literal("card"),
@@ -121,6 +122,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const rateLimit = applyRateLimit(request, "public-bookings-post", { max: 12, windowMs: 60_000 })
+    if (!rateLimit.ok) {
+      const retryAfter = Math.max(1, Math.ceil((rateLimit.resetAt - Date.now()) / 1000))
+      return NextResponse.json(
+        { error: "Muitas tentativas de reserva. Tente novamente em alguns instantes." },
+        { status: 429, headers: { "Retry-After": String(retryAfter) } }
+      )
+    }
+
     const body = await request.json()
     const validatedData = bookingSchema.parse(body)
     const paymentData = checkoutPaymentSchema.parse(body.payment)

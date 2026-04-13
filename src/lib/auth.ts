@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs"
 import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "@/lib/prisma"
+import { consumeRateLimit, getIpFromHeaderBag } from "@/lib/rate-limit"
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -17,10 +18,17 @@ export const authOptions: NextAuthOptions = {
         email: { label: "E-mail", type: "email" },
         password: { label: "Senha", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null
 
         const email = credentials.email.toLowerCase().trim()
+        const ip = getIpFromHeaderBag((req as any)?.headers)
+        const globalLoginAttempt = consumeRateLimit(`auth-login-ip:${ip}`, 20, 10 * 60_000)
+        if (!globalLoginAttempt.ok) return null
+
+        const identityLoginAttempt = consumeRateLimit(`auth-login:${email}:${ip}`, 8, 10 * 60_000)
+        if (!identityLoginAttempt.ok) return null
+
         const user = await prisma.adminUser.findUnique({ where: { email } })
         if (!user || !user.isActive) return null
 

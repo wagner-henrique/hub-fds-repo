@@ -3,6 +3,16 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireRole } from "@/lib/auth-guards"
 
+function sanitizeFileName(fileName: string, fallbackName: string): string {
+  const base = fileName
+    .replace(/[\r\n"]/g, "")
+    .replace(/[^a-zA-Z0-9._\-() ]/g, "_")
+    .trim()
+
+  const safe = base || fallbackName
+  return safe.toLowerCase().endsWith(".pdf") ? safe : `${safe}.pdf`
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -33,12 +43,16 @@ export async function GET(
       return NextResponse.json({ error: "Este contrato não possui PDF anexado" }, { status: 400 })
     }
 
-    const fileName = contract.fileName || `contrato-${id}.pdf`
+    const fallbackName = `contrato-${id}.pdf`
+    const fileName = sanitizeFileName(contract.fileName || fallbackName, fallbackName)
+    const encodedFileName = encodeURIComponent(fileName)
 
     return new NextResponse(contract.fileData, {
       headers: {
         "Content-Type": contract.mimeType || "application/pdf",
-        "Content-Disposition": `inline; filename="${fileName}"`,
+        "Content-Disposition": `inline; filename="${fileName}"; filename*=UTF-8''${encodedFileName}`,
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, no-store",
       },
     })
   } catch {

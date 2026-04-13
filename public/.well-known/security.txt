@@ -1,0 +1,5 @@
+Contact: mailto:primeecodesolutions@gmail.com
+Expires: 2027-04-13T00:00:00.000Z
+Preferred-Languages: pt, en
+Canonical: https://hubfds.com/.well-known/security.txt
+Policy: https://hubfds.com/termos

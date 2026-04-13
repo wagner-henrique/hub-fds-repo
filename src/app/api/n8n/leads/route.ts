@@ -4,6 +4,7 @@ import { z } from "zod"
 
 import { prisma } from "@/lib/prisma"
 import { isN8nAuthorized } from "@/lib/n8n-auth"
+import { applyRateLimit } from "@/lib/rate-limit"
 
 const syncLeadMessageSchema = z.object({
   phone: z.string().trim().min(6),
@@ -71,6 +72,15 @@ async function findLeadByPhone(normalizedPhone: string) {
 export async function GET(request: Request) {
   if (!isN8nAuthorized(request)) return unauthorizedResponse()
 
+  const rateLimit = applyRateLimit(request, "n8n-leads-get", { max: 120, windowMs: 60_000 })
+  if (!rateLimit.ok) {
+    const retryAfter = Math.max(1, Math.ceil((rateLimit.resetAt - Date.now()) / 1000))
+    return NextResponse.json(
+      { error: "Muitas requisições para integração n8n" },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } }
+    )
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const phoneParam = searchParams.get("phone")
@@ -107,6 +117,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (!isN8nAuthorized(request)) return unauthorizedResponse()
+
+  const rateLimit = applyRateLimit(request, "n8n-leads-post", { max: 120, windowMs: 60_000 })
+  if (!rateLimit.ok) {
+    const retryAfter = Math.max(1, Math.ceil((rateLimit.resetAt - Date.now()) / 1000))
+    return NextResponse.json(
+      { error: "Muitas requisições para integração n8n" },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } }
+    )
+  }
 
   try {
     const body = await request.json()

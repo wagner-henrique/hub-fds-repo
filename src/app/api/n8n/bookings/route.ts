@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { isN8nAuthorized } from "@/lib/n8n-auth"
 import { parseBrazilOrIsoDateToUtc } from "@/lib/date-brazil"
 import { processDirectPayment } from "@/lib/mercadopago" 
+import { applyRateLimit } from "@/lib/rate-limit"
 
 const roomMap: Record<string, string> = {
   "reuniao": "reuniao",
@@ -150,6 +151,15 @@ function unauthorizedResponse() {
 export async function GET(request: Request) {
   if (!isN8nAuthorized(request)) return unauthorizedResponse()
 
+  const rateLimit = applyRateLimit(request, "n8n-bookings-get", { max: 120, windowMs: 60_000 })
+  if (!rateLimit.ok) {
+    const retryAfter = Math.max(1, Math.ceil((rateLimit.resetAt - Date.now()) / 1000))
+    return NextResponse.json(
+      { error: "Muitas requisições para integração n8n" },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } }
+    )
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const queryParams = Object.fromEntries(searchParams.entries())
@@ -207,6 +217,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (!isN8nAuthorized(request)) return unauthorizedResponse()
+
+  const rateLimit = applyRateLimit(request, "n8n-bookings-post", { max: 120, windowMs: 60_000 })
+  if (!rateLimit.ok) {
+    const retryAfter = Math.max(1, Math.ceil((rateLimit.resetAt - Date.now()) / 1000))
+    return NextResponse.json(
+      { error: "Muitas requisições para integração n8n" },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } }
+    )
+  }
 
   try {
     const body = await request.json()
@@ -278,6 +297,15 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   if (!isN8nAuthorized(request)) return unauthorizedResponse()
 
+  const rateLimit = applyRateLimit(request, "n8n-bookings-patch", { max: 120, windowMs: 60_000 })
+  if (!rateLimit.ok) {
+    const retryAfter = Math.max(1, Math.ceil((rateLimit.resetAt - Date.now()) / 1000))
+    return NextResponse.json(
+      { error: "Muitas requisições para integração n8n" },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } }
+    )
+  }
+
   try {
     const body = await request.json()
     const payload = updateBookingSchema.parse(body)
@@ -329,6 +357,15 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   if (!isN8nAuthorized(request)) return unauthorizedResponse()
+
+  const rateLimit = applyRateLimit(request, "n8n-bookings-delete", { max: 120, windowMs: 60_000 })
+  if (!rateLimit.ok) {
+    const retryAfter = Math.max(1, Math.ceil((rateLimit.resetAt - Date.now()) / 1000))
+    return NextResponse.json(
+      { error: "Muitas requisições para integração n8n" },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } }
+    )
+  }
 
   try {
     const body = await request.json().catch(() => ({}))

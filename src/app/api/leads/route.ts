@@ -4,6 +4,7 @@ import { leadSchema, paginationSchema } from '@/lib/validations'
 import { LeadAiStatus, LeadStatus } from '@prisma/client'
 import { requireRole } from '@/lib/auth-guards'
 import { Prisma } from '@prisma/client'
+import { applyRateLimit } from '@/lib/rate-limit'
 
 export async function GET(request: Request) {
   try {
@@ -125,6 +126,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const rateLimit = applyRateLimit(request, 'public-leads-post', { max: 20, windowMs: 60_000 })
+    if (!rateLimit.ok) {
+      const retryAfter = Math.max(1, Math.ceil((rateLimit.resetAt - Date.now()) / 1000))
+      return NextResponse.json(
+        { error: 'Muitas requisições. Aguarde para enviar um novo contato.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+      )
+    }
+
     const body = await request.json()
     const validatedData = leadSchema.parse(body)
 

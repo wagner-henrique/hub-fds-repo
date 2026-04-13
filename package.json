@@ -85,6 +85,22 @@
   },
   "overrides": {
     "react": "$react",
-    "react-dom": "$react-dom"
+    "react-dom": "$react-dom",
+    "glob": "10.5.0",
+    "minimatch": "9.0.7",
+    "picomatch": "2.3.2",
+    "yaml": "2.8.3",
+    "defu": "6.1.5",
+    "effect": "3.20.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "glob": "10.5.0",
+      "minimatch": "9.0.7",
+      "picomatch": "2.3.2",
+      "yaml": "2.8.3",
+      "defu": "6.1.5",
+      "effect": "3.20.0"
+    }
   }
 }

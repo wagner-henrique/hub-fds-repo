@@ -62,7 +62,7 @@ function LoginPageContent() {
               onChange={(event) => setEmail(event.target.value)}
               required
               className="rounded-xl"
-              placeholder="admin@hubfds.com"
+              placeholder="email@hubfds.com.br"
             />
           </div>
 
