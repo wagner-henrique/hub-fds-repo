@@ -1,6 +1,16 @@
 import Link from "next/link"
+import type { Metadata } from "next"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
+export const metadata: Metadata = {
+  title: "Política de Privacidade",
+  description:
+    "Política de Privacidade do HUB FDS com detalhes sobre coleta, uso e proteção de dados pessoais.",
+  alternates: {
+    canonical: "/privacidade",
+  },
+}
 
 const sections = [
   {

@@ -66,12 +66,14 @@ const Contact = () => {
 
           <div className="h-[320px] overflow-hidden rounded-[2rem] border-4 border-secondary/30 shadow-2xl sm:h-[380px] sm:rounded-[3rem] sm:border-8 md:h-[450px]">
             <iframe 
+              title="Mapa da localização do HUB FDS em Arapiraca"
               src="https://www.google.com/maps?q=HUB+FDS+O+melhor+espa%C3%A7o+de+eventos+de+Arapiraca+Educa%C3%A7%C3%A3o+tecnol%C3%B3gica+%2B+Networking+real&output=embed" 
               width="100%" 
               height="100%" 
               style={{ border: 0 }} 
               allowFullScreen 
               loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
             ></iframe>
           </div>
         </div>

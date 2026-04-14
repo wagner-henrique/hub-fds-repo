@@ -1,6 +1,16 @@
 import Link from "next/link"
+import type { Metadata } from "next"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
+export const metadata: Metadata = {
+  title: "Termos de Uso",
+  description:
+    "Termos de Uso do HUB FDS com regras de utilização do site, reservas, pagamentos e responsabilidades.",
+  alternates: {
+    canonical: "/termos",
+  },
+}
 
 const sections = [
   {

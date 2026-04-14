@@ -1,4 +1,5 @@
 import React from 'react'
+import type { Metadata } from 'next'
 import Navbar from '@/components/Navbar'
 import Hero from '@/components/Hero'
 import VideoShowcase from '@/components/VideoShowcase'
@@ -8,6 +9,40 @@ import Contact from '@/components/Contact'
 import { ScrollReveal } from '@/components/ScrollReveal'
 import Image from 'next/image'
 import Link from 'next/link'
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hubfds.com'
+
+export const metadata: Metadata = {
+  title: 'Coworking, Eventos e Salas em Arapiraca - AL',
+  description:
+    'Conheça o HUB FDS em Arapiraca: coworking, salas para reunião, auditório e espaços para eventos, treinamentos e networking com agendamento rápido.',
+  keywords: [
+    'coworking em arapiraca',
+    'espaço para eventos arapiraca',
+    'sala de reunião arapiraca',
+    'auditório em arapiraca',
+    'hub fds',
+  ],
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'pt_BR',
+    url: siteUrl,
+    title: 'HUB FDS em Arapiraca | Coworking, Eventos e Reuniões',
+    description:
+      'Estrutura completa para empresas, criadores e eventos em Arapiraca - AL. Reserve espaços com agilidade no HUB FDS.',
+    images: [
+      {
+        url: '/logo.png',
+        width: 512,
+        height: 512,
+        alt: 'Logo do HUB FDS em Arapiraca',
+      },
+    ],
+  },
+}
 
 export default function Home() {
   return (

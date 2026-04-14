@@ -7,6 +7,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 const inter = Inter({ subsets: ["latin"] });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://hubfds.com";
+const siteName = "HUB FDS";
+const siteDescription =
+  "HUB FDS em Arapiraca - AL: coworking, salas para reunião, auditório e estrutura para eventos, treinamentos e networking.";
 
 const cspMetaContent = [
   "default-src 'self'",
@@ -23,16 +26,68 @@ const cspMetaContent = [
   "upgrade-insecure-requests",
 ].join("; ");
 
+const structuredData = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: siteName,
+    legalName: "HUB FDS - Fábrica de Sonhos",
+    url: siteUrl,
+    logo: `${siteUrl}/logo.png`,
+    sameAs: ["https://www.instagram.com/hubfds.br/"],
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "CoworkingSpace",
+    name: "HUB FDS - Fábrica de Sonhos",
+    url: siteUrl,
+    image: `${siteUrl}/logo.png`,
+    telephone: "+55 82 99999-9999",
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: "Rua Olavo Bilac, 210, Centro",
+      addressLocality: "Arapiraca",
+      addressRegion: "AL",
+      postalCode: "57300-000",
+      addressCountry: "BR",
+    },
+    openingHours: "Mo-Su 08:00-22:00",
+    sameAs: ["https://www.instagram.com/hubfds.br/"],
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: siteName,
+    url: siteUrl,
+    inLanguage: "pt-BR",
+  },
+];
+
 export const metadata: Metadata = {
-  title: "HUB FDS - Fábrica de Sonhos",
-  description: "Centro de Inovação em Arapiraca - AL",
+  title: {
+    default: "HUB FDS em Arapiraca | Coworking, Eventos e Reuniões",
+    template: "%s | HUB FDS",
+  },
+  description: siteDescription,
   metadataBase: new URL(siteUrl),
-  applicationName: "HUB FDS",
+  applicationName: siteName,
+  category: "business",
+  authors: [{ name: "HUB FDS" }],
+  creator: "HUB FDS",
+  publisher: "HUB FDS",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
   keywords: [
-    "hub fds",
-    "fabrica de sonhos",
-    "centro de inovacao",
-    "arapiraca",
+    "hub fds arapiraca",
+    "coworking em arapiraca",
+    "espaço para eventos arapiraca",
+    "sala de reunião arapiraca",
+    "auditório arapiraca",
+    "fábrica de sonhos arapiraca",
+    "centro de inovação arapiraca",
     "coworking",
     "eventos",
     "reservas",
@@ -55,9 +110,9 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "pt_BR",
-    siteName: "HUB FDS",
-    title: "HUB FDS - Fábrica de Sonhos",
-    description: "Centro de Inovação em Arapiraca - AL",
+    siteName,
+    title: "HUB FDS em Arapiraca | Coworking, Eventos e Reuniões",
+    description: siteDescription,
     url: siteUrl,
     images: [
       {
@@ -70,8 +125,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "HUB FDS - Fábrica de Sonhos",
-    description: "Centro de Inovação em Arapiraca - AL",
+    title: "HUB FDS em Arapiraca | Coworking, Eventos e Reuniões",
+    description: siteDescription,
     images: ["/logo.png"],
   },
   icons: {
@@ -89,6 +144,13 @@ export default function RootLayout({
       <head>
         <meta httpEquiv="Content-Security-Policy" content={cspMetaContent} />
         <meta name="referrer" content="strict-origin-when-cross-origin" />
+        {structuredData.map((schema, index) => (
+          <script
+            key={`ld-json-${index}`}
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+          />
+        ))}
       </head>
       <body className={inter.className}>
         <TooltipProvider>

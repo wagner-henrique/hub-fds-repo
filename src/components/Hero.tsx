@@ -29,12 +29,12 @@ const Hero = () => {
             O epicentro da inovação no Agreste. Infraestrutura de classe mundial para mentes inquietas e negócios visionários.
           </p>
           <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
-            <button className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-8 py-4 font-bold text-white shadow-2xl shadow-primary/30 transition-all hover:scale-105 sm:w-auto sm:px-10 sm:py-5">
+            <a href="#espacos" className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-8 py-4 font-bold text-white shadow-2xl shadow-primary/30 transition-all hover:scale-105 sm:w-auto sm:px-10 sm:py-5">
               Conhecer Espaços <ArrowRight size={20} />
-            </button>
-            <button className="w-full rounded-2xl border-2 border-primary/10 bg-white px-8 py-4 font-bold text-primary transition-colors hover:bg-primary/5 sm:w-auto sm:px-10 sm:py-5">
+            </a>
+            <a href="#contato" className="w-full rounded-2xl border-2 border-primary/10 bg-white px-8 py-4 font-bold text-primary transition-colors hover:bg-primary/5 sm:w-auto sm:px-10 sm:py-5">
               Ver Localização
-            </button>
+            </a>
           </div>
         </motion.div>
 
