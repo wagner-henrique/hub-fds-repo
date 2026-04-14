@@ -65,13 +65,46 @@ export async function POST(request: Request) {
       nextBookingStatus = BookingStatus.CANCELLED
     }
 
-    await prisma.booking.update({
+    const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
       data: { status: nextBookingStatus },
     })
 
+    if (nextBookingStatus === BookingStatus.CONFIRMED) {
+      const n8nWebhookUrl = process.env.N8N_PAYMENT_CONFIRMATION_URL
+      
+      if (n8nWebhookUrl) {
+        try {
+          const dateStr = updatedBooking.date 
+            ? new Date(updatedBooking.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) 
+            : ''
+
+          const idReservaMatch = updatedBooking.notes?.match(/\[ID_Reserva:([^\]]+)\]/)
+          const idReservaCurto = idReservaMatch ? idReservaMatch[1] : bookingId
+
+          await fetch(n8nWebhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              phone: updatedBooking.phone,
+              name: updatedBooking.name,
+              room: updatedBooking.room,
+              date: dateStr,
+              time: updatedBooking.time,
+              idReserva: idReservaCurto
+            }),
+          })
+          
+          console.log("Notificação de confirmação enviada ao n8n com sucesso.")
+        } catch (notifyError) {
+          console.error("Erro ao notificar o n8n sobre o pagamento:", notifyError)
+        }
+      }
+    }
+
     return NextResponse.json({ received: true })
-  } catch {
+  } catch (error) {
+    console.error("Erro no processamento do webhook do Mercado Pago:", error)
     return NextResponse.json({ received: true })
   }
 }

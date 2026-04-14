@@ -257,19 +257,28 @@ export async function POST(request: Request) {
         },
       })
 
-      let pixCopiaECola = null
+let pixCopiaECola = null
 
       if (payload.valorSinal && payload.valorSinal > 0) {
         try {
+          const firstName = payload.nomeCliente.split(" ")[0];
+          const lastName = payload.nomeCliente.split(" ").slice(1).join(" ") || "Cliente";
+
           const paymentResponse = await processDirectPayment({
             payment_method_id: "pix",
-            transaction_amount: payload.valorSinal,
+            transaction_amount: Number(payload.valorSinal), // Garante que seja numérico
             payer: {
               email: payload.email || `${normalizePhoneForEmail(payload.telefone)}@hub-fds.local`,
+              first_name: firstName,
+              last_name: lastName,
             },
           }, booking.id)
 
-          pixCopiaECola = paymentResponse.point_of_interaction?.transaction_data?.qr_code
+          pixCopiaECola = paymentResponse?.point_of_interaction?.transaction_data?.qr_code || null;
+
+          if (!pixCopiaECola) {
+            console.error("PIX criado, mas sem qr_code retornado: ", paymentResponse);
+          }
         } catch (error) {
           console.error("Erro ao gerar PIX do sinal via n8n:", error)
         }
