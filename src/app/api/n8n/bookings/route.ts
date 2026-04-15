@@ -257,7 +257,7 @@ export async function POST(request: Request) {
         },
       })
 
-let pixCopiaECola = null
+      let pixCopiaECola = null
 
       if (payload.valorSinal && payload.valorSinal > 0) {
         try {
@@ -266,7 +266,7 @@ let pixCopiaECola = null
 
           const paymentResponse = await processDirectPayment({
             payment_method_id: "pix",
-            transaction_amount: Number(payload.valorSinal), // Garante que seja numérico
+            transaction_amount: Number(payload.valorSinal),
             payer: {
               email: payload.email || `${normalizePhoneForEmail(payload.telefone)}@hub-fds.local`,
               first_name: firstName,
@@ -276,7 +276,21 @@ let pixCopiaECola = null
 
           pixCopiaECola = paymentResponse?.point_of_interaction?.transaction_data?.qr_code || null;
 
-          if (!pixCopiaECola) {
+          if (pixCopiaECola) {
+            const n8nPixUrl = process.env.N8N_SEND_PIX_URL;
+            if (n8nPixUrl) {
+              fetch(n8nPixUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  phone: payload.telefone,
+                  pixCode: pixCopiaECola,
+                  room: room,
+                  value: payload.valorSinal
+                }),
+              }).catch((e) => console.error("Erro ao disparar webhook de PIX para o n8n:", e));
+            }
+          } else {
             console.error("PIX criado, mas sem qr_code retornado: ", paymentResponse);
           }
         } catch (error) {
@@ -284,7 +298,6 @@ let pixCopiaECola = null
         }
       }
 
-      // Devolve a chave PIX para a IA juntamente com os dados da reserva
       return NextResponse.json({ 
         data: booking, 
         idReserva,
