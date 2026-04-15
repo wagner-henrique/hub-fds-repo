@@ -279,22 +279,26 @@ export async function POST(request: Request) {
           if (pixCopiaECola) {
             const n8nPixUrl = process.env.N8N_SEND_PIX_URL;
             if (n8nPixUrl) {
-              fetch(n8nPixUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  phone: payload.telefone,
-                  pixCode: pixCopiaECola,
-                  room: room,
-                  value: payload.valorSinal
-                }),
-              }).catch((e) => console.error("Erro ao disparar webhook de PIX para o n8n:", e));
+              try {
+                await fetch(n8nPixUrl, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    phone: payload.telefone,
+                    pixCode: pixCopiaECola,
+                    room: room,
+                    value: payload.valorSinal
+                  }),
+                });
+              } catch (e) {
+                console.error(e);
+              }
             }
           } else {
-            console.error("PIX criado, mas sem qr_code retornado: ", paymentResponse);
+            console.error(paymentResponse);
           }
         } catch (error) {
-          console.error("Erro ao gerar PIX do sinal via n8n:", error)
+          console.error(error)
         }
       }
 
