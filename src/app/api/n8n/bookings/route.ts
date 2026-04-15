@@ -243,7 +243,7 @@ export async function POST(request: Request) {
       const booking = await prisma.booking.create({
         data: {
           name: payload.nomeCliente,
-          email: payload.email || `${normalizePhoneForEmail(payload.telefone)}@hub-fds.local`,
+          email: payload.email || `${normalizePhoneForEmail(payload.telefone)}@hub-fds.com.br`,
           phone: payload.telefone,
           room,
           date: bookingDate,
@@ -268,7 +268,7 @@ export async function POST(request: Request) {
             payment_method_id: "pix",
             transaction_amount: Number(payload.valorSinal),
             payer: {
-              email: payload.email || `${normalizePhoneForEmail(payload.telefone)}@hub-fds.local`,
+              email: payload.email || `${normalizePhoneForEmail(payload.telefone)}@hub-fds.com.br`,
               first_name: firstName,
               last_name: lastName,
             },
