@@ -388,7 +388,7 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
   });
   const [uploadContractFile, setUploadContractFile] = useState<File | null>(null);
   const [generateContractForm, setGenerateContractForm] = useState({
-    title: "Contrato de Prestação de Serviços",
+    title: "Contrato de Locação - Sala Privativa",
     clientId: "",
     contractValue: "0",
     serviceDescription: "",
@@ -1580,7 +1580,7 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
       showSuccess('Contrato gerado com sucesso.')
       setIsGenerateContractDialogOpen(false)
       setGenerateContractForm({
-        title: 'Contrato de Prestação de Serviços',
+        title: 'Contrato de Locação - Sala Privativa',
         clientId: '',
         contractValue: '0',
         serviceDescription: '',
