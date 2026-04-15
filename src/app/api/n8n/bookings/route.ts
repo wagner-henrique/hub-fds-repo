@@ -305,7 +305,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ 
         data: booking, 
         idReserva,
-        pixCopiaECola 
+        mensagemDeSistema: "Reserva criada. O sistema já enviou o QR Code do Pix diretamente para o WhatsApp do cliente. Não tente gerar chaves Pix. Apenas informe ao cliente que o código já foi enviado e agradeça."
       }, { status: 201 })
 
     } catch (error) {
