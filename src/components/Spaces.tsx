@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -54,7 +54,6 @@ const roomGalleryMap: Record<string, string[]> = {
 }
 
 const Spaces = ({ spaces }: SpacesProps) => {
-  const [carouselStep, setCarouselStep] = useState(0)
   const [manualOffsets, setManualOffsets] = useState<Record<string, number>>({})
   const [touchStartX, setTouchStartX] = useState<Record<string, number>>({})
 
@@ -70,8 +69,7 @@ const Spaces = ({ spaces }: SpacesProps) => {
     if (galleryLength <= 0) return 0
 
     const manualOffset = manualOffsets[spaceId] ?? 0
-    const baseIndex = carouselStep + manualOffset
-    const normalizedIndex = ((baseIndex % galleryLength) + galleryLength) % galleryLength
+    const normalizedIndex = ((manualOffset % galleryLength) + galleryLength) % galleryLength
 
     return normalizedIndex
   }
@@ -104,47 +102,6 @@ const Spaces = ({ spaces }: SpacesProps) => {
       [spaceId]: 0,
     }))
   }
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setCarouselStep((prev) => prev + 1)
-    }, 3200)
-
-    return () => window.clearInterval(timer)
-  }, [])
-
-  useEffect(() => {
-    const imageSources = new Set<string>()
-
-    spaces.forEach((space) => {
-      const gallery = roomGalleryMap[space.id] || [space.image]
-      gallery.forEach((src) => imageSources.add(src))
-    })
-
-    const preloadLinks: HTMLLinkElement[] = []
-
-    // Pré-aquece cache sem forçar prioridade alta para todas as imagens.
-    imageSources.forEach((src) => {
-      const image = new Image()
-      image.decoding = 'async'
-      image.src = src
-
-      const preloadLink = document.createElement('link')
-      preloadLink.rel = 'prefetch'
-      preloadLink.as = 'image'
-      preloadLink.href = src
-      document.head.appendChild(preloadLink)
-      preloadLinks.push(preloadLink)
-    })
-
-    return () => {
-      preloadLinks.forEach((link) => {
-        if (link.parentNode) {
-          link.parentNode.removeChild(link)
-        }
-      })
-    }
-  }, [spaces])
 
   return (
     <section id="espacos" className="bg-white py-12 md:py-16">
