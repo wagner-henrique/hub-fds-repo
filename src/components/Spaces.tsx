@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -54,6 +54,9 @@ const roomGalleryMap: Record<string, string[]> = {
 }
 
 const Spaces = ({ spaces }: SpacesProps) => {
+  const sectionRef = useRef<HTMLElement | null>(null)
+  const [carouselStep, setCarouselStep] = useState(0)
+  const [isSectionVisible, setIsSectionVisible] = useState(false)
   const [manualOffsets, setManualOffsets] = useState<Record<string, number>>({})
   const [touchStartX, setTouchStartX] = useState<Record<string, number>>({})
 
@@ -69,7 +72,8 @@ const Spaces = ({ spaces }: SpacesProps) => {
     if (galleryLength <= 0) return 0
 
     const manualOffset = manualOffsets[spaceId] ?? 0
-    const normalizedIndex = ((manualOffset % galleryLength) + galleryLength) % galleryLength
+    const baseIndex = carouselStep + manualOffset
+    const normalizedIndex = ((baseIndex % galleryLength) + galleryLength) % galleryLength
 
     return normalizedIndex
   }
@@ -103,8 +107,36 @@ const Spaces = ({ spaces }: SpacesProps) => {
     }))
   }
 
+  useEffect(() => {
+    const section = sectionRef.current
+    if (!section) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        setIsSectionVisible(Boolean(entry?.isIntersecting))
+      },
+      { threshold: 0.2 }
+    )
+
+    observer.observe(section)
+
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (!isSectionVisible) return
+
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      setCarouselStep((prev) => prev + 1)
+    }, 3600)
+
+    return () => window.clearInterval(timer)
+  }, [isSectionVisible])
+
   return (
-    <section id="espacos" className="bg-white py-12 md:py-16">
+    <section ref={sectionRef} id="espacos" className="bg-white py-12 md:py-16">
       <div className="container mx-auto px-4 sm:px-6">
         <div className="mb-10 text-center sm:mb-12">
           <h2 className="mb-3 text-3xl font-bold sm:text-4xl">Nossos Espaços</h2>
