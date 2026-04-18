@@ -17,6 +17,13 @@ type DashboardTabProps = {
   onDeleteBooking: (id: string) => void
 }
 
+const formatCurrencyBRL = (value: number) => {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(value)
+}
+
 export function DashboardTab({
   bookings,
   leads,
@@ -79,6 +86,7 @@ export function DashboardTab({
               <TableHead className={`px-8 ${tableHeadBaseClass}`}>Cliente</TableHead>
               <TableHead className={tableHeadBaseClass}>Data</TableHead>
               <TableHead className={tableHeadBaseClass}>Horario</TableHead>
+              <TableHead className={tableHeadBaseClass}>Pagamento</TableHead>
               <TableHead className={tableHeadBaseClass}>Status</TableHead>
               <TableHead className={`px-8 text-right ${tableHeadBaseClass}`}>Acoes</TableHead>
             </TableRow>
@@ -86,7 +94,7 @@ export function DashboardTab({
           <TableBody>
             {bookings.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-20 text-center font-medium text-slate-400">
+                <TableCell colSpan={6} className="py-20 text-center font-medium text-slate-400">
                   Nenhum agendamento encontrado.
                 </TableCell>
               </TableRow>
@@ -101,6 +109,19 @@ export function DashboardTab({
                     {new Date(item.date).toLocaleDateString("pt-BR")}
                   </TableCell>
                   <TableCell className={`${tableCellBaseClass} font-bold text-primary`}>{item.time}</TableCell>
+                  <TableCell className={tableCellBaseClass}>
+                    {item.paymentSummary ? (
+                      <div className="space-y-1">
+                        <Badge className="rounded-lg px-3 py-1 font-bold bg-slate-700">
+                          Pago: {item.paymentSummary.coveragePercent}%
+                        </Badge>
+                        <p className="text-xs text-slate-600">Valor pago: {formatCurrencyBRL(item.paymentSummary.paidAmount)}</p>
+                        <p className="text-xs text-slate-500">Falta: {formatCurrencyBRL(item.paymentSummary.remainingAmount)}</p>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400">Sem informação de pagamento</span>
+                    )}
+                  </TableCell>
                   <TableCell className={tableCellBaseClass}>
                     <Badge
                       className={`rounded-lg px-3 py-1 font-bold ${

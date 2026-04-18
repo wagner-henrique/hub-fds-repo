@@ -37,8 +37,106 @@ const manualPaymentSchema = z.object({
 })
 
 const checkoutPaymentSchema = z.discriminatedUnion("method", [cardPaymentSchema, pixPaymentSchema, manualPaymentSchema])
+const paymentCoverageSchema = z.union([z.literal(50), z.literal(100)]).default(50)
 
 const isInvalidDate = (value: Date) => Number.isNaN(value.getTime())
+
+const MORNING_SHIFT_SLOTS = ["08:00", "09:00", "10:00", "11:00"]
+const AFTERNOON_SHIFT_SLOTS = ["13:00", "14:00", "15:00", "16:00"]
+const SHIFT_COMBINATIONS = [
+  MORNING_SHIFT_SLOTS,
+  AFTERNOON_SHIFT_SLOTS,
+  [...MORNING_SHIFT_SLOTS, ...AFTERNOON_SHIFT_SLOTS],
+]
+
+function sortTimeSlots(times: string[]) {
+  return [...times].sort((a, b) => a.localeCompare(b))
+}
+
+function areSameSlots(left: string[], right: string[]) {
+  if (left.length !== right.length) return false
+  return left.every((slot, index) => slot === right[index])
+}
+
+function getShiftCountFromTimes(times: string[]) {
+  const sorted = sortTimeSlots(times)
+
+  if (areSameSlots(sorted, MORNING_SHIFT_SLOTS)) return 1
+  if (areSameSlots(sorted, AFTERNOON_SHIFT_SLOTS)) return 1
+  if (areSameSlots(sorted, sortTimeSlots([...MORNING_SHIFT_SLOTS, ...AFTERNOON_SHIFT_SLOTS]))) return 2
+
+  return 0
+}
+
+function isValidShiftSelection(times: string[]) {
+  const sorted = sortTimeSlots(times)
+  return SHIFT_COMBINATIONS.some((combination) => areSameSlots(sorted, sortTimeSlots(combination)))
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+function parseTaggedNumber(notes: string | null | undefined, tag: string) {
+  if (!notes) return null
+  const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const match = notes.match(new RegExp(`\\[${escapedTag}:([^\\]]+)\\]`))
+  if (!match?.[1]) return null
+  const parsed = Number.parseFloat(match[1].replace(",", "."))
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function parseTaggedInteger(notes: string | null | undefined, tag: string) {
+  if (!notes) return null
+  const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const match = notes.match(new RegExp(`\\[${escapedTag}:([^\\]]+)\\]`))
+  if (!match?.[1]) return null
+  const parsed = Number.parseInt(match[1], 10)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function buildPaymentMeta(
+  fullAmount: number,
+  paidAmount: number,
+  coveragePercent: 50 | 100,
+) {
+  const remainingAmount = roundMoney(Math.max(fullAmount - paidAmount, 0))
+  return [
+    `[Payment_Coverage:${coveragePercent}]`,
+    `[Payment_Full:${roundMoney(fullAmount).toFixed(2)}]`,
+    `[Payment_Paid:${roundMoney(paidAmount).toFixed(2)}]`,
+    `[Payment_Remaining:${remainingAmount.toFixed(2)}]`,
+  ].join(" ")
+}
+
+function withPaymentSummary<T extends { notes?: string | null }>(booking: T) {
+  const coveragePercent = parseTaggedInteger(booking.notes, "Payment_Coverage")
+  const fullAmount = parseTaggedNumber(booking.notes, "Payment_Full")
+  const paidAmount = parseTaggedNumber(booking.notes, "Payment_Paid")
+  const remainingAmount = parseTaggedNumber(booking.notes, "Payment_Remaining")
+
+  if (
+    (coveragePercent !== 50 && coveragePercent !== 100) ||
+    fullAmount === null ||
+    paidAmount === null ||
+    remainingAmount === null
+  ) {
+    return {
+      ...booking,
+      paymentSummary: null,
+    }
+  }
+
+  return {
+    ...booking,
+    paymentSummary: {
+      coveragePercent,
+      fullAmount,
+      paidAmount,
+      remainingAmount,
+    },
+  }
+}
 
 export async function GET(request: Request) {
   try {
@@ -104,7 +202,7 @@ export async function GET(request: Request) {
     ])
 
     return NextResponse.json({
-      data: bookings,
+      data: bookings.map((booking) => withPaymentSummary(booking)),
       meta: {
         total,
         page,
@@ -134,6 +232,7 @@ export async function POST(request: Request) {
     const body = await request.json()
     const validatedData = bookingSchema.parse(body)
     const paymentData = checkoutPaymentSchema.parse(body.payment)
+    const paymentCoverage = paymentCoverageSchema.parse(body.paymentCoverage)
 
     if (validatedData.room === "coworking" && paymentData.method !== "manual") {
       return NextResponse.json({ error: "Reservas de coworking devem ser feitas via WhatsApp" }, { status: 400 })
@@ -154,16 +253,38 @@ export async function POST(request: Request) {
     const dayOfWeek = bookingDate.getUTCDay()
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
 
-    const times = Array.isArray(validatedData.time) ? validatedData.time : [validatedData.time]
+    const times = Array.from(new Set(Array.isArray(validatedData.time) ? validatedData.time : [validatedData.time]))
     const hours = times.length
     let totalPrice = 0
 
+    if ((validatedData.room === "auditorio" || validatedData.room === "treinamento") && !isValidShiftSelection(times)) {
+      return NextResponse.json(
+        { error: "Para Auditório e Centro de Treinamento, selecione apenas Manhã, Tarde ou os dois turnos." },
+        { status: 400 },
+      )
+    }
+
+    const selectedShiftCount = getShiftCountFromTimes(times)
+
     if (validatedData.room === "auditorio") {
-      totalPrice = isWeekend ? 810 : 730
+      totalPrice = (isWeekend ? 810 : 730) * selectedShiftCount
     } else if (validatedData.room === "treinamento") {
-      totalPrice = isWeekend ? 680 : 600
+      totalPrice = (isWeekend ? 680 : 600) * selectedShiftCount
     } else if (validatedData.room === "arapiraca") {
-      totalPrice = isWeekend ? 600 : 500
+      if (isWeekend) {
+        if (!isValidShiftSelection(times)) {
+          return NextResponse.json(
+            { error: "Na Sala Arapiraca aos fins de semana, a reserva deve ser por turno (Manhã, Tarde ou ambos)." },
+            { status: 400 },
+          )
+        }
+
+        totalPrice = 600 * getShiftCountFromTimes(times)
+      } else if (isValidShiftSelection(times)) {
+        totalPrice = 500 * getShiftCountFromTimes(times)
+      } else {
+        totalPrice = hours * 150
+      }
     } else if (validatedData.room === "reuniao") {
       if (hours <= 2) {
         totalPrice = hours * 100
@@ -173,6 +294,16 @@ export async function POST(request: Request) {
         totalPrice = 640 // Diária
       }
     }
+
+    const extrasPrice =
+      (validatedData.coffeeBreakSpace ? 150 : 0) +
+      (validatedData.lunchOrDinnerStructure ? 500 : 0)
+
+    totalPrice += extrasPrice
+    const fullAmount = roundMoney(totalPrice)
+    const amountToCharge = paymentData.method === "manual"
+      ? fullAmount
+      : roundMoney((fullAmount * paymentCoverage) / 100)
 
     const manualSourceLabel = paymentData.method === "manual"
       ? paymentData.source === "whatsapp" ? "WhatsApp" : paymentData.source === "presencial" ? "Presencial" : "Admin"
@@ -186,6 +317,18 @@ export async function POST(request: Request) {
     let createdBookings = []
     const groupId = `GRP-${Date.now()}`
 
+    const extrasNotes = [
+      validatedData.coffeeBreakSpace ? "[Extra:Espaco_Coffee_Break_R$150]" : null,
+      validatedData.lunchOrDinnerStructure ? "[Extra:Almoco_ou_Jantar_R$500]" : null,
+      "[Info:Uso_Recepcao_e_Copa_Incluso_No_Periodo_Contratado]",
+    ].filter(Boolean).join(" ")
+
+    const paymentNotes = buildPaymentMeta(
+      fullAmount,
+      amountToCharge,
+      paymentData.method === "manual" ? 100 : paymentCoverage,
+    )
+
     try {
       createdBookings = await prisma.$transaction(
         times.map(timeStr => prisma.booking.create({
@@ -198,8 +341,8 @@ export async function POST(request: Request) {
             date: bookingDate,
             time: timeStr,
             notes: paymentData.method === "manual"
-              ? `[Manual: ${manualSourceLabel}] [Grupo:${groupId}] ${validatedData.notes || ""}`
-              : `[Grupo:${groupId}] ${validatedData.notes || ""}`,
+              ? `[Manual: ${manualSourceLabel}] [Grupo:${groupId}] ${paymentNotes} ${extrasNotes} ${validatedData.notes || ""}`
+              : `[Grupo:${groupId}] ${paymentNotes} ${extrasNotes} ${validatedData.notes || ""}`,
             status: paymentData.method === "manual" ? (paymentData.status ?? BookingStatus.CONFIRMED) : BookingStatus.PENDING
           }
         }))
@@ -223,13 +366,13 @@ export async function POST(request: Request) {
           token: paymentData.token,
           issuer_id: paymentData.issuer_id ?? undefined,
           payment_method_id: paymentData.payment_method_id,
-          transaction_amount: totalPrice,
+          transaction_amount: amountToCharge,
           installments: paymentData.installments,
           payer: { email: paymentData.payer.email, identification: paymentData.payer.identification ?? undefined },
         }
       : {
           payment_method_id: "pix",
-          transaction_amount: totalPrice,
+          transaction_amount: amountToCharge,
           payer: { email: validatedData.email },
         }
 
@@ -254,12 +397,16 @@ export async function POST(request: Request) {
     })
 
     return NextResponse.json({
-      booking: primaryBooking, 
+      booking: withPaymentSummary(primaryBooking),
       payment: {
         id: paymentResponse.id,
         status: paymentResponse.status,
         statusDetail: paymentResponse.status_detail,
         method: paymentData.method,
+        coveragePercent: paymentCoverage,
+        fullAmount,
+        paidAmount: amountToCharge,
+        remainingAmount: roundMoney(fullAmount - amountToCharge),
         pix: paymentData.method === "pix" ? {
           qrCode: paymentResponse.point_of_interaction?.transaction_data?.qr_code,
           qrCodeBase64: paymentResponse.point_of_interaction?.transaction_data?.qr_code_base64,

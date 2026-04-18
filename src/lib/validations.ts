@@ -17,6 +17,8 @@ export const bookingSchema = z.object({
     z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Formato de hora inválido" }),
     z.array(z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/)).min(1, { message: "Informe no mínimo um horário" })
   ]),
+  coffeeBreakSpace: z.coerce.boolean().optional().default(false),
+  lunchOrDinnerStructure: z.coerce.boolean().optional().default(false),
   notes: z.string().max(500, { message: "Notas não podem conter mais de 500 caracteres" }).optional().nullable(),
 })
 

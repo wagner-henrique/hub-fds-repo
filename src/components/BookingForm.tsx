@@ -19,9 +19,14 @@ const timeSlots = [
   "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"
 ]
 
+const turnoOptions = [
+  { id: 'manha', label: 'Turno Manhã', period: '08:00 às 12:00', slots: ["08:00", "09:00", "10:00", "11:00"] },
+  { id: 'tarde', label: 'Turno Tarde', period: '13:00 às 17:00', slots: ["13:00", "14:00", "15:00", "16:00"] },
+]
+
 const rooms = [
   { id: 'reuniao', label: 'Sala de Reunião (Hora)', price: 100.00, icon: Briefcase },
-  { id: 'arapiraca', label: 'Sala Arapiraca (Turno)', price: 500.00, icon: Users },
+  { id: 'arapiraca', label: 'Sala Arapiraca (Hora/Turno)', price: 500.00, icon: Users },
   { id: 'treinamento', label: 'Centro Treinamento (Turno)', price: 600.00, icon: Presentation },
   { id: 'auditorio', label: 'Auditório (Turno)', price: 730.00, icon: Mic },
   { id: 'coworking', label: 'Coworking', price: 0, icon: Laptop },
@@ -46,8 +51,33 @@ export default function BookingForm({ initialRoomId, onSuccess }: BookingFormPro
   const [availabilityLoading, setAvailabilityLoading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showExtendedSlots, setShowExtendedSlots] = useState(false)
+  const [arapiracaMode, setArapiracaMode] = useState<'turno' | 'hora'>('turno')
+  const [paymentCoverage, setPaymentCoverage] = useState<50 | 100>(50)
+  const [additionalOptions, setAdditionalOptions] = useState({
+    coffeeBreakSpace: false,
+    lunchOrDinnerStructure: false,
+  })
+
+  const isWeekend = date ? (date.getDay() === 0 || date.getDay() === 6) : false
+  const hoursCount = selectedSlots.length
 
   const currentRoomDetails = rooms.find(r => r.id === selectedRoom)
+  const isTurnOnlyRoom = selectedRoom === 'auditorio' || selectedRoom === 'treinamento'
+  const isArapiracaRoom = selectedRoom === 'arapiraca'
+  const canUseArapiracaHourly = isArapiracaRoom && !isWeekend
+  const useTurnCards = isTurnOnlyRoom || (isArapiracaRoom && arapiracaMode === 'turno')
+
+  const selectedTurnCount = turnoOptions.filter((turno) => turno.slots.every((slot) => selectedSlots.includes(slot))).length
+
+  const getTurnBasePrice = () => {
+    if (selectedRoom === 'auditorio') return isWeekend ? 810 : 730
+    if (selectedRoom === 'treinamento') return isWeekend ? 680 : 600
+    if (selectedRoom === 'arapiraca' && (isWeekend || arapiracaMode === 'turno')) return isWeekend ? 600 : 500
+    return null
+  }
+
+  const turnBasePrice = getTurnBasePrice()
+  const extraHourPrice = turnBasePrice ? turnBasePrice / 4 : null
 
   const handleRoomChange = (roomId: string) => {
     setSelectedRoom(roomId)
@@ -56,6 +86,7 @@ export default function BookingForm({ initialRoomId, onSuccess }: BookingFormPro
     setPixData(null)
     setPixBookingId(null)
     setPixStatusMessage(null)
+    setArapiracaMode('turno')
   }
 
   const checkPixBookingStatus = useCallback(async (bookingId: string) => {
@@ -92,14 +123,16 @@ export default function BookingForm({ initialRoomId, onSuccess }: BookingFormPro
     }
   }, [onSuccess])
 
-  const isWeekend = date ? (date.getDay() === 0 || date.getDay() === 6) : false
-  const hoursCount = selectedSlots.length
-
   const getDynamicPrice = () => {
     if (hoursCount === 0 || !selectedRoom) return 0
-    if (selectedRoom === 'auditorio') return isWeekend ? 810 : 730
-    if (selectedRoom === 'treinamento') return isWeekend ? 680 : 600
-    if (selectedRoom === 'arapiraca') return isWeekend ? 600 : 500
+    if (selectedRoom === 'auditorio') return selectedTurnCount * (isWeekend ? 810 : 730)
+    if (selectedRoom === 'treinamento') return selectedTurnCount * (isWeekend ? 680 : 600)
+    if (selectedRoom === 'arapiraca') {
+      if (isWeekend || arapiracaMode === 'turno') {
+        return selectedTurnCount * (isWeekend ? 600 : 500)
+      }
+      return hoursCount * 150
+    }
     if (selectedRoom === 'reuniao') {
       if (hoursCount <= 2) return hoursCount * 100
       if (hoursCount <= 4) return 299
@@ -108,11 +141,35 @@ export default function BookingForm({ initialRoomId, onSuccess }: BookingFormPro
     return 0
   }
 
-  const amount = getDynamicPrice()
+  const extrasAmount =
+    (additionalOptions.coffeeBreakSpace ? 150 : 0) +
+    (additionalOptions.lunchOrDinnerStructure ? 500 : 0)
+
+  const fullAmount = getDynamicPrice() + extrasAmount
+  const amountToPay = Math.round(((fullAmount * paymentCoverage) / 100 + Number.EPSILON) * 100) / 100
+  const remainingAmount = Math.max(0, Math.round((fullAmount - amountToPay + Number.EPSILON) * 100) / 100)
 
   const visibleTimeSlots = showExtendedSlots
     ? timeSlots
     : timeSlots.filter((slot) => Number(slot.split(':')[0]) <= 18)
+
+  const toggleTurno = (turnoId: string) => {
+    const turno = turnoOptions.find((item) => item.id === turnoId)
+    if (!turno) return
+
+    const allBooked = turno.slots.some((slot) => bookedSlots.includes(slot))
+    if (allBooked) return
+
+    const isSelected = turno.slots.every((slot) => selectedSlots.includes(slot))
+
+    setSelectedSlots((prev) => {
+      if (isSelected) {
+        return prev.filter((slot) => !turno.slots.includes(slot)).sort()
+      }
+
+      return Array.from(new Set([...prev, ...turno.slots])).sort()
+    })
+  }
 
   const toggleSlot = (slot: string) => {
     setSelectedSlots(prev => 
@@ -179,6 +236,13 @@ export default function BookingForm({ initialRoomId, onSuccess }: BookingFormPro
     }
   }, [bookedSlots, selectedSlots])
 
+  useEffect(() => {
+    if (!isArapiracaRoom) return
+    if (isWeekend) {
+      setArapiracaMode('turno')
+    }
+  }, [isArapiracaRoom, isWeekend])
+
   const handleCheckPixNow = async () => {
     if (!pixBookingId) return
     setLoading(true)
@@ -208,6 +272,16 @@ export default function BookingForm({ initialRoomId, onSuccess }: BookingFormPro
 const validateSchedule = () => {
     if (selectedSlots.length === 0) {
       showError("Escolha uma data e um horário para continuar.")
+      return false
+    }
+
+    if ((selectedRoom === 'auditorio' || selectedRoom === 'treinamento') && selectedTurnCount === 0) {
+      showError("Para esse espaço, selecione o turno da manhã, tarde ou ambos.")
+      return false
+    }
+
+    if (selectedRoom === 'arapiraca' && (isWeekend || arapiracaMode === 'turno') && selectedTurnCount === 0) {
+      showError("Na Sala Arapiraca por turno, selecione manhã, tarde ou os dois turnos.")
       return false
     }
 
@@ -251,6 +325,9 @@ const validateSchedule = () => {
       room: selectedRoom,
       date: formattedDate,
       time: selectedSlots,
+      coffeeBreakSpace: additionalOptions.coffeeBreakSpace,
+      lunchOrDinnerStructure: additionalOptions.lunchOrDinnerStructure,
+      paymentCoverage,
     }
   }
 
@@ -420,38 +497,118 @@ const validateSchedule = () => {
           />
         </div>
         <div className="space-y-3">
-          <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Horário</label>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-2">
-            {visibleTimeSlots.map((slot) => {
-              const isBooked = bookedSlots.includes(slot)
-              const isSelected = selectedSlots.includes(slot)
-              return (
-                <button
-                  key={slot}
-                  onClick={() => toggleSlot(slot)}
-                  disabled={selectedRoom === 'coworking' || isBooked}
-                  className={`py-3 rounded-xl text-xs font-bold transition-all border-2 ${
-                    isSelected
-                      ? 'bg-primary border-primary text-white shadow-md'
-                      : isBooked
-                        ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
-                        : 'bg-white border-secondary text-slate-600 hover:border-primary/30'
-                  }`}
-                >
-                  {slot}{isBooked ? ' • ocupado' : ''}
-                </button>
-              )
-            })}
-          </div>
-          {!showExtendedSlots && (
-            <button
-              type="button"
-              onClick={() => setShowExtendedSlots(true)}
-              className="text-xs font-bold text-primary transition-colors hover:text-primary/80"
-            >
-              Ver horários após 18:00 (até 22:00)
-            </button>
+          <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">
+            {useTurnCards ? 'Turno' : 'Horário'}
+          </label>
+          {isArapiracaRoom && canUseArapiracaHourly && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setArapiracaMode('turno')
+                  setSelectedSlots([])
+                }}
+                className={`py-2 rounded-xl text-xs font-bold transition-all border-2 ${
+                  arapiracaMode === 'turno'
+                    ? 'bg-primary border-primary text-white'
+                    : 'bg-white border-secondary text-slate-600'
+                }`}
+              >
+                Turno
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setArapiracaMode('hora')
+                  setSelectedSlots([])
+                }}
+                className={`py-2 rounded-xl text-xs font-bold transition-all border-2 ${
+                  arapiracaMode === 'hora'
+                    ? 'bg-primary border-primary text-white'
+                    : 'bg-white border-secondary text-slate-600'
+                }`}
+              >
+                Hora (dias úteis)
+              </button>
+            </div>
           )}
+
+          {useTurnCards ? (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-1">
+              {turnoOptions.map((turno) => {
+                const isTurnBooked = turno.slots.some((slot) => bookedSlots.includes(slot))
+                const isSelected = turno.slots.every((slot) => selectedSlots.includes(slot))
+
+                return (
+                  <button
+                    key={turno.id}
+                    onClick={() => toggleTurno(turno.id)}
+                    disabled={isTurnBooked}
+                    className={`p-3 rounded-xl text-left text-xs font-bold transition-all border-2 ${
+                      isSelected
+                        ? 'bg-primary border-primary text-white shadow-md'
+                        : isTurnBooked
+                          ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
+                          : 'bg-white border-secondary text-slate-600 hover:border-primary/30'
+                    }`}
+                  >
+                    <div>{turno.label}</div>
+                    <div className={`${isSelected ? 'text-white/85' : 'text-slate-500'} text-[11px]`}>
+                      {turno.period}
+                    </div>
+                    {isTurnBooked ? <div className="text-[11px]">Indisponível</div> : null}
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-2">
+                {visibleTimeSlots.map((slot) => {
+                  const isBooked = bookedSlots.includes(slot)
+                  const isSelected = selectedSlots.includes(slot)
+                  return (
+                    <button
+                      key={slot}
+                      onClick={() => toggleSlot(slot)}
+                      disabled={selectedRoom === 'coworking' || isBooked}
+                      className={`py-3 rounded-xl text-xs font-bold transition-all border-2 ${
+                        isSelected
+                          ? 'bg-primary border-primary text-white shadow-md'
+                          : isBooked
+                            ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
+                            : 'bg-white border-secondary text-slate-600 hover:border-primary/30'
+                      }`}
+                    >
+                      {slot}{isBooked ? ' • ocupado' : ''}
+                    </button>
+                  )
+                })}
+              </div>
+              {!showExtendedSlots && (
+                <button
+                  type="button"
+                  onClick={() => setShowExtendedSlots(true)}
+                  className="text-xs font-bold text-primary transition-colors hover:text-primary/80"
+                >
+                  Ver horários após 18:00 (até 22:00)
+                </button>
+              )}
+            </>
+          )}
+
+          {isArapiracaRoom && isWeekend && (
+            <p className="text-xs text-muted-foreground">
+              Aos sábados e domingos, a Sala Arapiraca permite apenas locação por turno.
+            </p>
+          )}
+
+          {isArapiracaRoom && !isWeekend && arapiracaMode === 'hora' && (
+            <p className="text-xs text-muted-foreground">
+              Valor da Sala Arapiraca por hora em dias úteis: R$ 150/h.
+            </p>
+          )}
+
           {availabilityLoading && selectedRoom !== 'coworking' && (
             <p className="text-xs text-muted-foreground">Verificando horários disponíveis...</p>
           )}
@@ -461,8 +618,21 @@ const validateSchedule = () => {
       {selectedRoom !== 'coworking' && currentRoomDetails && step === 'details' && (
         <div className="bg-primary/5 p-4 rounded-2xl border border-primary/10">
           <p className="text-xs font-bold text-primary flex items-center gap-2">
-            <CreditCard size={14} /> Pagamento para confirmação: R$ {amount.toFixed(2).replace('.', ',')}
+            <CreditCard size={14} /> Pagamento para confirmação ({paymentCoverage}%): R$ {amountToPay.toFixed(2).replace('.', ',')}
           </p>
+          <p className="mt-2 text-xs text-primary/90 leading-relaxed">
+            Esse valor corresponde a {paymentCoverage}% do valor total da reserva.
+          </p>
+          <p className="mt-1 text-xs text-primary/80 leading-relaxed">
+            Valor integral da reserva: R$ {fullAmount.toFixed(2).replace('.', ',')}. Falta para quitar: R$ {remainingAmount.toFixed(2).replace('.', ',')}.
+          </p>
+          {extraHourPrice !== null && (
+            <p className="mt-2 text-xs text-primary/90 leading-relaxed">
+              Caso o cliente ultrapasse o horário contratado, será cobrada hora excedente.
+              O cálculo é feito dividindo o valor do turno (4 horas) por 4.
+              Exemplo: Auditório R$ 730 ÷ 4 = R$ 182,50 por hora excedente.
+            </p>
+          )}
         </div>
       )}
 
@@ -550,12 +720,73 @@ const validateSchedule = () => {
             </div>
           </div>
 
+          <div className="space-y-2">
+            <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Quanto deseja pagar agora?</label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setPaymentCoverage(50)}
+                className={`py-3 rounded-xl text-sm font-bold transition-all border-2 ${
+                  paymentCoverage === 50
+                    ? 'bg-primary border-primary text-white'
+                    : 'bg-white border-secondary text-slate-600'
+                }`}
+              >
+                50% (sinal)
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentCoverage(100)}
+                className={`py-3 rounded-xl text-sm font-bold transition-all border-2 ${
+                  paymentCoverage === 100
+                    ? 'bg-primary border-primary text-white'
+                    : 'bg-white border-secondary text-slate-600'
+                }`}
+              >
+                100% (quitação)
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Opções adicionais (opcional)</label>
+            <div className="space-y-2 rounded-2xl border border-secondary/50 bg-secondary/10 p-3">
+              <label className="flex items-start gap-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={additionalOptions.coffeeBreakSpace}
+                  onChange={(e) => setAdditionalOptions((prev) => ({ ...prev, coffeeBreakSpace: e.target.checked }))}
+                />
+                <span>
+                  Espaço para coffee break na copa <strong>(+ R$ 150,00)</strong>
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={additionalOptions.lunchOrDinnerStructure}
+                  onChange={(e) => setAdditionalOptions((prev) => ({ ...prev, lunchOrDinnerStructure: e.target.checked }))}
+                />
+                <span>
+                  Almoço ou jantar com organização maior <strong>(+ R$ 500,00)</strong>
+                </span>
+              </label>
+
+              <p className="text-xs text-muted-foreground">
+                O cliente pode utilizar a recepção e a copa durante o período contratado.
+              </p>
+            </div>
+          </div>
+
           {paymentMethod === 'card' && (
             <div className="rounded-2xl border border-secondary/50 bg-white p-3 sm:p-4">
               {mpPublicKey ? (
                 <CardPayment
                   initialization={{
-                    amount,
+                    amount: amountToPay,
                     payer: {
                       email: formData.email,
                     },

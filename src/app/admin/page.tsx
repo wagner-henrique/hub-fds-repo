@@ -125,6 +125,13 @@ const getAdminTabPath = (tabId: string) => {
   return tabId === 'dashboard' ? '/admin' : `/admin/${tabId}`
 }
 
+const formatCurrencyBRL = (value: number) => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value)
+}
+
 const normalizeLeadMessageContent = (content: string) => {
   const trimmedContent = content.trim()
   if (!trimmedContent) return content
@@ -2180,6 +2187,7 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                 <TableRow className="border-none bg-slate-50/70">
                   <TableHead className={`px-8 ${tableHeadBaseClass}`}>Informações</TableHead>
                   <TableHead className={tableHeadBaseClass}>Data/Hora</TableHead>
+                  <TableHead className={tableHeadBaseClass}>Pagamento</TableHead>
                   <TableHead className={tableHeadBaseClass}>Status</TableHead>
                   <TableHead className={`px-8 text-right ${tableHeadBaseClass}`}>Ações</TableHead>
                 </TableRow>
@@ -2197,6 +2205,23 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                         <span className="font-medium text-slate-600">{new Date(item.date).toLocaleDateString('pt-BR')}</span>
                         <span className="text-xs font-bold text-primary">{item.time}</span>
                       </div>
+                    </TableCell>
+                    <TableCell className={tableCellBaseClass}>
+                      {item.paymentSummary ? (
+                        <div className="space-y-1">
+                          <Badge className="rounded-lg px-3 py-1 font-bold bg-slate-700">
+                            Pago: {item.paymentSummary.coveragePercent}%
+                          </Badge>
+                          <p className="text-xs text-slate-600">
+                            Valor pago: {formatCurrencyBRL(item.paymentSummary.paidAmount)}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            Falta: {formatCurrencyBRL(item.paymentSummary.remainingAmount)}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400">Sem informação de pagamento</span>
+                      )}
                     </TableCell>
                     <TableCell className={tableCellBaseClass}>
                       <Badge className={`rounded-lg px-3 py-1 font-bold ${
