@@ -58,7 +58,11 @@ const Spaces = ({ spaces }: SpacesProps) => {
   const [manualOffsets, setManualOffsets] = useState<Record<string, number>>({})
   const [touchStartX, setTouchStartX] = useState<Record<string, number>>({})
 
-  const preventImageActions = (event: React.SyntheticEvent) => {
+  const preventImageContextMenu = (event: React.MouseEvent<HTMLImageElement>) => {
+    event.preventDefault()
+  }
+
+  const preventImageDrag = (event: React.DragEvent<HTMLImageElement>) => {
     event.preventDefault()
   }
 
@@ -189,8 +193,8 @@ const Spaces = ({ spaces }: SpacesProps) => {
                     decoding="async"
                     fetchPriority="high"
                     draggable={false}
-                    onContextMenu={preventImageActions}
-                    onDragStart={preventImageActions}
+                    onContextMenu={preventImageContextMenu}
+                    onDragStartCapture={preventImageDrag}
                     className="absolute inset-0 h-full w-full object-cover will-change-transform group-hover:scale-110 transition-transform duration-500"
                   />
                 </AnimatePresence>
