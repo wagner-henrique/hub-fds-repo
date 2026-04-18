@@ -123,18 +123,18 @@ const Spaces = ({ spaces }: SpacesProps) => {
 
     const preloadLinks: HTMLLinkElement[] = []
 
+    // Pré-aquece cache sem forçar prioridade alta para todas as imagens.
     imageSources.forEach((src) => {
+      const image = new Image()
+      image.decoding = 'async'
+      image.src = src
+
       const preloadLink = document.createElement('link')
-      preloadLink.rel = 'preload'
+      preloadLink.rel = 'prefetch'
       preloadLink.as = 'image'
       preloadLink.href = src
       document.head.appendChild(preloadLink)
       preloadLinks.push(preloadLink)
-
-      const image = new Image()
-      image.decoding = 'async'
-      image.loading = 'eager'
-      image.src = src
     })
 
     return () => {
@@ -185,17 +185,16 @@ const Spaces = ({ spaces }: SpacesProps) => {
                     key={`${space.id}-${activeImage}`}
                     src={activeImage}
                     alt={space.title}
-                    initial={{ opacity: 0, scale: 1.04 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 1.01 }}
-                    transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-                    loading="eager"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.35, ease: 'linear' }}
+                    loading="lazy"
                     decoding="async"
-                    fetchPriority="high"
                     draggable={false}
                     onContextMenu={preventImageContextMenu}
                     onDragStartCapture={preventImageDrag}
-                    className="absolute inset-0 h-full w-full object-cover will-change-transform group-hover:scale-110 transition-transform duration-500"
+                    className="absolute inset-0 h-full w-full object-cover"
                   />
                 </AnimatePresence>
                 {gallery.length > 1 && (
