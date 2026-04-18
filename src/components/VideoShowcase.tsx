@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 
 const VideoShowcase = () => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [videoFailed, setVideoFailed] = useState(false);
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start end", "end start"]
@@ -24,14 +25,28 @@ const VideoShowcase = () => {
         }}
         className="relative h-[60vh] w-full overflow-hidden shadow-2xl sm:h-[70vh] md:h-[90vh]"
       >
-        <video 
-          src="/showcase.webm" 
-          autoPlay 
-          muted 
-          loop 
-          playsInline 
-          className="absolute inset-0 w-full h-full object-cover"
-        />
+        {!videoFailed ? (
+          <video
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            poster="/placeholder.svg"
+            onError={() => setVideoFailed(true)}
+            className="absolute inset-0 h-full w-full object-cover"
+          >
+            <source src="/showocase2.mp4" type="video/mp4" />
+            <source src="/showcase.webm" type="video/webm" />
+          </video>
+        ) : (
+          <img
+            src="/placeholder.svg"
+            alt="Ambiente do HUB FDS"
+            className="absolute inset-0 h-full w-full object-cover"
+            loading="lazy"
+          />
+        )}
         <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/60 via-transparent to-black/30 p-6 sm:p-10 md:p-24">
           <motion.div
             initial={{ y: 50, opacity: 0 }}
