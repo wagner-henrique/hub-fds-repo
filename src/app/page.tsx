@@ -7,6 +7,7 @@ import LandingContentSections from '@/components/LandingContentSections'
 import BookingSystem from '@/components/BookingSystem'
 import Contact from '@/components/Contact'
 import { ScrollReveal } from '@/components/ScrollReveal'
+import AnchorSmoothScroll from '@/components/AnchorSmoothScroll'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -47,6 +48,7 @@ export const metadata: Metadata = {
 export default function Home() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-background selection:bg-primary selection:text-white">
+      <AnchorSmoothScroll />
       <Navbar />
       
       <main>
