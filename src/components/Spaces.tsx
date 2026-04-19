@@ -1,7 +1,8 @@
 "use client";
 
+import Image from 'next/image';
 import React, { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import BookingDialog from '@/components/BookingDialog';
@@ -55,10 +56,10 @@ const roomGalleryMap: Record<string, string[]> = {
 
 const Spaces = ({ spaces }: SpacesProps) => {
   const sectionRef = useRef<HTMLElement | null>(null)
+  const touchStartXRef = useRef<Record<string, number>>({})
   const [carouselStep, setCarouselStep] = useState(0)
   const [isSectionVisible, setIsSectionVisible] = useState(false)
   const [manualOffsets, setManualOffsets] = useState<Record<string, number>>({})
-  const [touchStartX, setTouchStartX] = useState<Record<string, number>>({})
 
   const preventImageContextMenu = (event: React.MouseEvent<HTMLImageElement>) => {
     event.preventDefault()
@@ -82,11 +83,11 @@ const Spaces = ({ spaces }: SpacesProps) => {
     const x = event.touches[0]?.clientX
     if (typeof x !== 'number') return
 
-    setTouchStartX((prev) => ({ ...prev, [spaceId]: x }))
+    touchStartXRef.current[spaceId] = x
   }
 
   const handleTouchEnd = (spaceId: string, event: React.TouchEvent<HTMLDivElement>) => {
-    const startX = touchStartX[spaceId]
+    const startX = touchStartXRef.current[spaceId]
     const endX = event.changedTouches[0]?.clientX
 
     if (typeof startX !== 'number' || typeof endX !== 'number') return
@@ -101,10 +102,7 @@ const Spaces = ({ spaces }: SpacesProps) => {
       [spaceId]: (prev[spaceId] ?? 0) + (deltaX < 0 ? 1 : -1),
     }))
 
-    setTouchStartX((prev) => ({
-      ...prev,
-      [spaceId]: 0,
-    }))
+    touchStartXRef.current[spaceId] = 0
   }
 
   useEffect(() => {
@@ -135,6 +133,22 @@ const Spaces = ({ spaces }: SpacesProps) => {
     return () => window.clearInterval(timer)
   }, [isSectionVisible])
 
+  useEffect(() => {
+    if (!isSectionVisible) return
+
+    const sources = new Set<string>()
+
+    spaces.forEach((space) => {
+      const gallery = roomGalleryMap[space.id] || [space.image]
+      gallery.forEach((src) => sources.add(src))
+    })
+
+    sources.forEach((src) => {
+      const img = new window.Image()
+      img.src = src
+    })
+  }, [isSectionVisible, spaces])
+
   return (
     <section ref={sectionRef} id="espacos" className="bg-white py-12 md:py-16">
       <div className="container mx-auto px-4 sm:px-6">
@@ -155,7 +169,6 @@ const Spaces = ({ spaces }: SpacesProps) => {
             const whatsappMessage = `Olá! Quero mais informações sobre ${space.title} no HUB FDS.`
             const gallery = roomGalleryMap[space.id] || [space.image]
             const imageIndex = getSpaceImageIndex(space.id, gallery.length)
-            const activeImage = gallery[imageIndex] || space.image
 
             return (
             <motion.div
@@ -169,23 +182,21 @@ const Spaces = ({ spaces }: SpacesProps) => {
                 onTouchEnd={(event) => handleTouchEnd(space.id, event)}
                 style={{ touchAction: 'pan-y' }}
               >
-                <AnimatePresence initial={false} mode="sync">
-                  <motion.img
-                    key={`${space.id}-${activeImage}`}
-                    src={activeImage}
+                {gallery.map((imageSrc, idx) => (
+                  <Image
+                    key={`${space.id}-${imageSrc}`}
+                    src={imageSrc}
                     alt={space.title}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.35, ease: 'linear' }}
-                    loading="lazy"
-                    decoding="async"
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 360px"
+                    quality={72}
+                    loading={idx === imageIndex ? 'eager' : 'lazy'}
                     draggable={false}
                     onContextMenu={preventImageContextMenu}
-                    onDragStartCapture={preventImageDrag}
-                    className="absolute inset-0 h-full w-full object-cover"
+                    onDragStart={preventImageDrag}
+                    className={`absolute inset-0 h-full w-full select-none object-cover transition-opacity duration-500 ease-out will-change-opacity ${idx === imageIndex ? 'opacity-100' : 'opacity-0'}`}
                   />
-                </AnimatePresence>
+                ))}
                 {gallery.length > 1 && (
                   <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/30 px-2 py-1 backdrop-blur-sm">
                     {gallery.map((_, idx) => (
