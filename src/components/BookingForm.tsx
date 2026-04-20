@@ -334,7 +334,7 @@ const validateSchedule = () => {
   const handleCoworkingBooking = async () => {
     if (selectedRoom === 'coworking') {
       const msg = encodeURIComponent(`Olá! Gostaria de consultar os valores e disponibilidade para o espaço de Coworking.`)
-      window.open(`https://wa.me/5582999999999?text=${msg}`, '_blank')
+      window.open(`https://wa.me/5582981161290?text=${msg}`, '_blank')
       return
     }
   }
@@ -661,7 +661,7 @@ const validateSchedule = () => {
               <div className="relative">
                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-primary/40" size={16} />
                 <Input 
-                  placeholder="(82) 99999-9999" 
+                  placeholder="(82) 98116-1290" 
                   value={formData.phone} 
                   onChange={handlePhoneChange}
                   className="pl-10 py-6 rounded-xl border-secondary bg-secondary/10 focus:bg-white transition-all"

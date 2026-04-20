@@ -13,7 +13,7 @@ type SpacesProps = {
   spaces: LandingSpace[];
 };
 
-const WHATSAPP_URL = 'https://wa.me/5582999999999'
+const WHATSAPP_URL = 'https://wa.me/5582981161290'
 
 const roomIds: Record<string, string> = {
   'sala-arapiraca': 'arapiraca',

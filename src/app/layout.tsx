@@ -42,7 +42,7 @@ const structuredData = [
     name: "HUB FDS - Fábrica de Sonhos",
     url: siteUrl,
     image: `${siteUrl}/logo.png`,
-    telephone: "+55 82 99999-9999",
+    telephone: "+55 (82) 98116-1290",
     address: {
       "@type": "PostalAddress",
       streetAddress: "Rua Olavo Bilac, 210, Centro",

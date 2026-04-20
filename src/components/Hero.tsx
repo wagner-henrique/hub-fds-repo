@@ -1,10 +1,40 @@
 "use client";
 
-import React from 'react';
+import Image from 'next/image';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Sparkles, Rocket } from 'lucide-react';
 
+const heroFrames = [
+  '/imagens_salas/arp1.JPG',
+  '/imagens_salas/arp2.JPG',
+  '/imagens_salas/audit1.JPG',
+  '/imagens_salas/audit2.JPG',
+  '/imagens_salas/ct1.JPG',
+  '/imagens_salas/reuni1.JPG',
+  '/imagens_salas/reuni2.JPG',
+]
+
 const Hero = () => {
+  const [activeFrame, setActiveFrame] = useState(0)
+
+  useEffect(() => {
+    heroFrames.forEach((src) => {
+      const image = new window.Image()
+      image.src = src
+    })
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+
+      setActiveFrame((current) => (current + 1) % heroFrames.length)
+    }, 2200)
+
+    return () => window.clearInterval(timer)
+  }, [])
+
   return (
     <section id="home" className="relative min-h-screen flex items-center pt-24 md:pt-20 overflow-hidden">
       <div className="absolute inset-0 -z-10">
@@ -49,11 +79,44 @@ const Hero = () => {
             transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
             className="relative z-10 overflow-hidden rounded-[2rem] border-8 border-white shadow-[0_30px_60px_-20px_rgba(0,0,0,0.2)] sm:rounded-[3rem] sm:border-[12px] sm:shadow-[0_50px_100px_-20px_rgba(0,0,0,0.2)]"
           >
-            <img 
-              src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1000" 
-              alt="Escritório Moderno" 
-              className="h-[320px] w-full object-cover sm:h-[420px] md:h-[550px]"
-            />
+            <div className="relative h-[320px] w-full bg-slate-900 sm:h-[420px] md:h-[550px]">
+              {heroFrames.map((src, index) => (
+                <Image
+                  key={src}
+                  src={src}
+                  alt="Salas do HUB FDS em sequência"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  priority={index === 0}
+                  draggable={false}
+                  className={`absolute inset-0 h-full w-full select-none object-cover transition-all duration-1000 ease-out ${
+                    index === activeFrame ? 'opacity-100 scale-105' : 'opacity-0 scale-110'
+                  }`}
+                />
+              ))}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" />
+              <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full border border-white/20 bg-black/25 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.22em] text-white backdrop-blur-md sm:left-5 sm:top-5">
+                Tour das salas
+                <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(74,222,128,0.9)]" />
+              </div>
+              <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-white backdrop-blur-md sm:left-5 sm:right-5 sm:bottom-5">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/70">
+                    Networking real
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {heroFrames.map((_, index) => (
+                    <span
+                      key={`hero-frame-dot-${index}`}
+                      className={`h-1.5 rounded-full transition-all duration-500 ${
+                        index === activeFrame ? 'w-8 bg-white' : 'w-1.5 bg-white/45'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
           </motion.div>
           
           <motion.div 
