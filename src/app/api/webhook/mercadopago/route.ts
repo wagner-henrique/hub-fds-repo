@@ -5,6 +5,41 @@ import { BookingStatus } from "@prisma/client"
 import crypto from "node:crypto"
 import { applyRateLimit } from "@/lib/rate-limit"
 
+function parseTaggedNumber(notes: string | null | undefined, tag: string) {
+  if (!notes) return null
+  const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const match = notes.match(new RegExp(`\\[${escapedTag}:([^\\]]+)\\]`))
+  if (!match?.[1]) return null
+  const parsed = Number.parseFloat(match[1].replace(",", "."))
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function parseTaggedInteger(notes: string | null | undefined, tag: string) {
+  if (!notes) return null
+  const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const match = notes.match(new RegExp(`\\[${escapedTag}:([^\\]]+)\\]`))
+  if (!match?.[1]) return null
+  const parsed = Number.parseInt(match[1], 10)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function upsertTag(notes: string | null | undefined, tag: string, value: string) {
+  const safeNotes = notes?.trim() ?? ""
+  const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const pattern = new RegExp(`\\[${escapedTag}:[^\\]]*\\]`, "g")
+  const nextTag = `[${tag}:${value}]`
+
+  if (pattern.test(safeNotes)) {
+    return safeNotes.replace(pattern, nextTag).trim()
+  }
+
+  return [safeNotes, nextTag].filter(Boolean).join(" ").trim()
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
 function safeEqual(left: string, right: string): boolean {
   const leftBuffer = Buffer.from(left)
   const rightBuffer = Buffer.from(right)
@@ -58,6 +93,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true })
     }
 
+    const existingBooking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: { notes: true },
+    })
+
+    if (!existingBooking) {
+      return NextResponse.json({ received: true })
+    }
+
     let nextBookingStatus: BookingStatus = BookingStatus.PENDING
     if (payment.status === "approved") {
       nextBookingStatus = BookingStatus.CONFIRMED
@@ -65,9 +109,40 @@ export async function POST(request: Request) {
       nextBookingStatus = BookingStatus.CANCELLED
     }
 
+    const transactionAmount = Number(payment.transaction_amount)
+    const paidAmount = Number.isFinite(transactionAmount) ? roundMoney(transactionAmount) : null
+    const fullAmount = parseTaggedNumber(existingBooking.notes, "Payment_Full")
+    const currentCoverage = parseTaggedInteger(existingBooking.notes, "Payment_Coverage")
+
+    const inferredCoverage =
+      currentCoverage === 50 || currentCoverage === 100
+        ? currentCoverage
+        : fullAmount !== null && paidAmount !== null && fullAmount > 0 && paidAmount >= fullAmount
+          ? 100
+          : 50
+
+    const safeFullAmount = fullAmount !== null ? roundMoney(fullAmount) : paidAmount ?? 0
+    const safePaidAmount = paidAmount ?? parseTaggedNumber(existingBooking.notes, "Payment_Paid") ?? 0
+    const remainingAmount = roundMoney(Math.max(safeFullAmount - safePaidAmount, 0))
+
+    let nextNotes = existingBooking.notes
+
+    if (payment.status === "approved") {
+      nextNotes = upsertTag(nextNotes, "Payment_MP_Confirmed", "1")
+      nextNotes = upsertTag(nextNotes, "Payment_Coverage", String(inferredCoverage))
+      nextNotes = upsertTag(nextNotes, "Payment_Full", safeFullAmount.toFixed(2))
+      nextNotes = upsertTag(nextNotes, "Payment_Paid", roundMoney(safePaidAmount).toFixed(2))
+      nextNotes = upsertTag(nextNotes, "Payment_Remaining", remainingAmount.toFixed(2))
+    } else if (payment.status === "rejected" || payment.status === "cancelled") {
+      nextNotes = upsertTag(nextNotes, "Payment_MP_Confirmed", "0")
+    }
+
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
-      data: { status: nextBookingStatus },
+      data: {
+        status: nextBookingStatus,
+        notes: nextNotes,
+      },
     })
 
     if (nextBookingStatus === BookingStatus.CONFIRMED) {

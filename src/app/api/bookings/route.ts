@@ -95,6 +95,18 @@ function parseTaggedInteger(notes: string | null | undefined, tag: string) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function hasTaggedFlag(notes: string | null | undefined, tag: string, expected: string) {
+  if (!notes) return false
+  const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const escapedExpected = expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  return new RegExp(`\\[${escapedTag}:${escapedExpected}\\]`).test(notes)
+}
+
+function isManualBooking(notes: string | null | undefined) {
+  if (!notes) return false
+  return /\[Manual:[^\]]+\]/.test(notes)
+}
+
 function buildPaymentMeta(
   fullAmount: number,
   paidAmount: number,
@@ -110,6 +122,17 @@ function buildPaymentMeta(
 }
 
 function withPaymentSummary<T extends { notes?: string | null }>(booking: T) {
+  const notes = booking.notes
+  const isManual = isManualBooking(notes)
+  const isWebhookConfirmed = hasTaggedFlag(notes, "Payment_MP_Confirmed", "1")
+
+  if (!isManual && !isWebhookConfirmed) {
+    return {
+      ...booking,
+      paymentSummary: null,
+    }
+  }
+
   const coveragePercent = parseTaggedInteger(booking.notes, "Payment_Coverage")
   const fullAmount = parseTaggedNumber(booking.notes, "Payment_Full")
   const paidAmount = parseTaggedNumber(booking.notes, "Payment_Paid")

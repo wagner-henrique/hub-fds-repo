@@ -125,6 +125,19 @@ function appendN8nMeta(
   return parts.join(" ")
 }
 
+function upsertTag(notes: string | null | undefined, tag: string, value: string) {
+  const safeNotes = notes?.trim() ?? ""
+  const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const pattern = new RegExp(`\\[${escapedTag}:[^\\]]*\\]`, "g")
+  const nextTag = `[${tag}:${value}]`
+
+  if (pattern.test(safeNotes)) {
+    return safeNotes.replace(pattern, nextTag).trim()
+  }
+
+  return [safeNotes, nextTag].filter(Boolean).join(" ").trim()
+}
+
 async function findBookingByIdentifiers(payload: { bookingId?: string | null; idReserva?: string | null }) {
   if (payload.bookingId) {
     return prisma.booking.findUnique({ where: { id: payload.bookingId } })
@@ -238,9 +251,11 @@ export async function POST(request: Request) {
     if (!bookingDate) return NextResponse.json({ error: "Data inválida" }, { status: 400 })
 
     const idReserva = payload.idReserva || generateReservaId()
+    const hasPixCharge = Boolean(payload.valorSinal && payload.valorSinal > 0)
+    const initialStatus = hasPixCharge ? BookingStatus.PENDING : (payload.status || BookingStatus.PENDING)
 
     try {
-      const booking = await prisma.booking.create({
+      let booking = await prisma.booking.create({
         data: {
           name: payload.nomeCliente,
           email: payload.email || `${normalizePhoneForEmail(payload.telefone)}@hub-fds.com.br`,
@@ -253,7 +268,7 @@ export async function POST(request: Request) {
             horarioFim: payload.horarioFim,
             numeroPessoas: payload.numeroPessoas,
           }),
-          status: payload.status || BookingStatus.PENDING,
+          status: initialStatus,
         },
       })
 
@@ -275,6 +290,26 @@ export async function POST(request: Request) {
           }, booking.id)
 
           pixCopiaECola = paymentResponse?.point_of_interaction?.transaction_data?.qr_code || null;
+
+          const mpStatus = paymentResponse?.status
+          let nextBookingStatus: BookingStatus = BookingStatus.PENDING
+          if (mpStatus === "approved") nextBookingStatus = BookingStatus.CONFIRMED
+          else if (mpStatus === "rejected" || mpStatus === "cancelled") nextBookingStatus = BookingStatus.CANCELLED
+
+          let nextNotes = booking.notes
+          if (mpStatus === "approved") {
+            nextNotes = upsertTag(nextNotes, "Payment_MP_Confirmed", "1")
+          } else if (mpStatus === "rejected" || mpStatus === "cancelled") {
+            nextNotes = upsertTag(nextNotes, "Payment_MP_Confirmed", "0")
+          }
+
+          booking = await prisma.booking.update({
+            where: { id: booking.id },
+            data: {
+              status: nextBookingStatus,
+              notes: nextNotes,
+            },
+          })
 
           if (pixCopiaECola) {
             const n8nPixUrl = process.env.N8N_SEND_PIX_URL;
