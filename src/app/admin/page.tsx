@@ -93,7 +93,9 @@ const operationalTimeSlots = [
 
 const operationalRooms = [
   { id: "reuniao", label: "Sala de Reunião" },
-  { id: "treinamento", label: "Sala de Treinamento" },
+  { id: "arapiraca", label: "Sala Arapiraca" },
+  { id: "treinamento", label: "Centro Treinamento" },
+  { id: "auditorio", label: "Auditório" },
   { id: "coworking", label: "Coworking" },
 ]
 
