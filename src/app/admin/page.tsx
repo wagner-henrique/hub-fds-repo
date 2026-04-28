@@ -3438,7 +3438,9 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                     <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
                       <SelectItem value="reuniao">Sala de Reunião</SelectItem>
+                      <SelectItem value="arapiraca">Sala Arapiraca</SelectItem>
                       <SelectItem value="treinamento">Sala de Treinamento</SelectItem>
+                      <SelectItem value="auditorio">Auditório</SelectItem>
                       <SelectItem value="coworking">Coworking</SelectItem>
                     </SelectContent>
                   </Select>
