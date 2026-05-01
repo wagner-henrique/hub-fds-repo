@@ -93,7 +93,9 @@ const operationalTimeSlots = [
 
 const operationalRooms = [
   { id: "reuniao", label: "Sala de Reunião" },
-  { id: "treinamento", label: "Sala de Treinamento" },
+  { id: "arapiraca", label: "Sala Arapiraca" },
+  { id: "treinamento", label: "Centro Treinamento" },
+  { id: "auditorio", label: "Auditório" },
   { id: "coworking", label: "Coworking" },
 ]
 
@@ -3461,7 +3463,9 @@ export function AdminDashboard({ forcedTab }: { forcedTab?: string }) {
                     <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent className="z-50 rounded-xl border border-slate-200 bg-white shadow-lg">
                       <SelectItem value="reuniao">Sala de Reunião</SelectItem>
+                      <SelectItem value="arapiraca">Sala Arapiraca</SelectItem>
                       <SelectItem value="treinamento">Sala de Treinamento</SelectItem>
+                      <SelectItem value="auditorio">Auditório</SelectItem>
                       <SelectItem value="coworking">Coworking</SelectItem>
                     </SelectContent>
                   </Select>
